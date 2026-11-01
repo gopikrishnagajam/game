@@ -1,17 +1,19 @@
-# Fun Cricket
+# Fun Cricket v0.3
 
 A desktop browser cricket batting game: twelve balls, three wickets, one target. Built with TypeScript, Three.js and Vite. Everything runs locally; play needs no backend or external asset requests.
 
-## First-edition review
+## Play v0.3
 
-The v0.1 implementation is ready for review. To play the production edition, run:
+To play the production edition, run:
 
 ```powershell
 npm run build
 npm run preview
 ```
 
-Open the printed Local URL, normally **http://127.0.0.1:4173/**. Start with Beginner, then try Club or Pro. Aim with the arrows and press A, S or D slightly before the ball arrives. Check timing, ball visibility, scoring, pause/resume and One More Chase. The [acceptance report](docs/ACCEPTANCE.md) records automated evidence and the batting-feel and hardware checks awaiting human review. Further development is held for that review.
+Open the printed Local URL, normally **http://127.0.0.1:4173/**. Start with Beginner, then try Club or Pro. Prepare your direction during the run-up and press A, S or D after release, before the ball reaches you. The [acceptance report](docs/ACCEPTANCE.md) records automated evidence and the batting-feel and hardware checks awaiting human review.
+
+v0.3 gives Beginner **55%**, Club **70%** and Pro **85%** gameplay speed. A larger display ball, contrast outline, short historical trail and bounce pulse help you follow the delivery. Early/perfect/late/missed feedback explains execution; successful shots add a fuller follow-through, impact effects, richer sound and gentle outgoing-ball camera tracking. Bowling trajectories, collision radius, scoring and match rules remain physical and unchanged.
 
 ## Run locally
 
@@ -35,7 +37,7 @@ Open the Local URL printed by Vite, normally **http://127.0.0.1:5173/**. Use a c
 | Escape | Pause/resume |
 | Space | Advance already-resolved result presentation |
 
-Press the shot key **before the ball arrives**: the batting animation needs time to reach contact. Your first shot press locks the direction for that ball. Holding a key never creates a second shot. The in-game How to Play panel explains the rules.
+Select direction during the run-up; it carries over between deliveries. Press the shot key **after release and before the ball arrives**: the batting animation needs time to reach contact. Your first shot press locks the direction for that ball. Holding a shot key through release never automatically bats; release it and press again to swing. The in-game How to Play panel explains the rules.
 
 Directions for the right-handed batter: Up = straight, Up/Left = midwicket, Up/Right = covers, Left = square leg, Right = point, Down/Left = fine leg, Down/Right = third man. Down chooses a late stroke based on actual ball line.
 
@@ -49,7 +51,7 @@ Directions for the right-handed batter: Up = straight, Up/Left = midwicket, Up/R
 - Lofted shots score from the first landing. Clearing the boundary is six; landing in a virtual catching circle permits a confidence-adjusted catch.
 - Reaching the target ends the innings immediately. Twelve balls or three wickets ends an unsuccessful chase.
 
-The camera remains fixed. The small tracker appears when an outgoing ball leaves the 3D viewport. It displays the live ball, never a predicted result. No fielders, keeper, umpires or non-striker model are rendered.
+The incoming camera view stays fixed. After contact it gently pans toward the actual ball, within bounded angles, then resets before the next delivery. The small tracker covers shots outside that view. It displays the live ball, never a predicted result. No fielders, keeper, umpires or non-striker model are rendered.
 
 ## Checks and production build
 
@@ -67,11 +69,11 @@ npm run preview
 
 ## Architecture
 
-`src/core/game.ts` owns the match lifecycle and fixed 120 Hz simulation. Pure systems implement bowling, ball physics, batting, confidence, collision, fielding and scoring. The immutable match reducer updates the faced batter before applying replacements and strike rotation. The HUD reads this same authoritative state.
+`src/core/game.ts` owns the match lifecycle and fixed 120 Hz simulation. `advanceRealTime()` applies difficulty speed once before the fixed-step accumulator; both animation frames and timestamped keyboard inputs use it. `advance()` accepts simulation seconds for deterministic scenarios. Pure systems implement bowling, ball physics, batting, confidence, collision, fielding and scoring. The immutable match reducer updates the faced batter before applying replacements and strike rotation. The HUD reads this same authoritative state.
 
-The original articulated player is authored in `src/rendering/player.ts`; `src/animation/pose.ts` samples the stroke, footwork and pad geometry. Both rendering and physics use these poses, so the collider follows the visible bat. A seeded PRNG controls delivery generation, bounded shot deviation and geometrically eligible catch decisions. No independent roll invents runs.
+The original articulated player is authored in `src/rendering/player.ts`; `src/animation/pose.ts` samples the stroke, footwork and pad geometry. Rendering and physics share the bat pose through impact; a cosmetic finish starts after verified contact and the protected impact interval. A seeded PRNG controls delivery generation, bounded shot deviation and geometrically eligible catch decisions. No independent roll invents runs.
 
-All primary gameplay values live in `src/core/config.ts`. Locked rules and fixed timing windows must remain consistent with `instructions.md`. See [mechanics documentation](docs/MECHANICS.md), [development plan](DEVELOPMENT_PLAN.md), and [acceptance report](docs/ACCEPTANCE.md) for behavior and validation limits.
+Primary gameplay values live in `src/core/config.ts`; rendering-only visibility and follow-camera settings live in `src/rendering/presentation.ts`. The v0.3 request updates the original specification's timing and post-contact camera behavior while retaining core rules. See [mechanics documentation](docs/MECHANICS.md) and the [acceptance report](docs/ACCEPTANCE.md) for behavior and validation limits.
 
 ## Developer diagnostics and original assets
 

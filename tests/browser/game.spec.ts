@@ -137,6 +137,52 @@ test('arrow selection and S keyboard input lock one physical shot and suppress k
   await expect(page.locator('#direction-lock')).toHaveText('LOCKED');
 });
 
+test('run-up aim is retained, held shots never auto-bat, and pause blocks aiming', async ({ page }) => {
+  await openDebug(page);
+  await page.evaluate(() => {
+    const api = (window as any).__cricket;
+    api.start('blue', 'beginner');
+    api.game.start('blue', 'beginner', 12);
+  });
+  await page.keyboard.down('ArrowUp');
+  await page.keyboard.down('ArrowRight');
+  await page.keyboard.up('ArrowUp');
+  await page.keyboard.up('ArrowRight');
+  await page.keyboard.down('s');
+  await page.evaluate(() => {
+    const api = (window as any).__cricket;
+    while (api.game.phase === 'runup') api.game.advance(1 / 120);
+    api.ui.update();
+  });
+  await page.keyboard.down('s');
+  expect(await page.evaluate(() => (window as any).__cricket.game.shot)).toBeNull();
+  await expect(page.locator('#direction-name')).toHaveText('Covers');
+  await page.keyboard.up('s');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('ArrowLeft');
+  expect(await page.evaluate(() => (window as any).__cricket.input.direction)).toBe('cover');
+  await page.locator('#resume').click();
+  await page.keyboard.press('s');
+  const committed = await page.evaluate(() => {
+    const api = (window as any).__cricket;
+    const shot = structuredClone(api.game.shot);
+    for (let tick = 0; tick < 120 * 60; tick++) {
+      if (api.game.phase === 'runup' && api.game.match.balls === 1) break;
+      api.game.advance(1 / 120);
+    }
+    api.ui.update();
+    return { shot, phase: api.game.phase, balls: api.game.match.balls, direction: api.input.direction, inputs: api.game.inputLog.length };
+  });
+  expect(committed.shot.direction).toBe('cover');
+  expect(committed.inputs).toBe(1);
+  expect(committed.phase).toBe('runup');
+  expect(committed.balls).toBe(1);
+  expect(committed.direction).toBe('cover');
+  await page.keyboard.press('ArrowLeft');
+  await page.evaluate(() => (window as any).__cricket.ui.update());
+  await expect(page.locator('#direction-name')).toHaveText('Square leg');
+});
+
 test('losing focus pauses the live simulation until explicit resume', async ({ page }) => {
   await openDebug(page);
   const initial = await page.evaluate(() => {
@@ -166,7 +212,8 @@ test('losing focus pauses the live simulation until explicit resume', async ({ p
   await expect(page.locator('#pause-overlay')).toBeHidden();
 });
 
-test('a browser-timestamped shot event advances simulation between delayed render frames', async ({ page }) => {
+for (const difficulty of ['beginner', 'club', 'pro'] as const) {
+test(`a ${difficulty} timestamped shot and rendered frame share the scaled clock`, async ({ page }) => {
   await page.addInitScript(() => {
     const callbacks: FrameRequestCallback[] = [];
     (window as any).__delayedFrames = callbacks;
@@ -174,11 +221,11 @@ test('a browser-timestamped shot event advances simulation between delayed rende
   });
   await page.goto('/?debug=1');
   await page.waitForFunction(() => Boolean((window as any).__cricket));
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(async difficulty => {
     const api = (window as any).__cricket;
     // Keep main.ts on its real timestamp path: do not call stopRendering().
-    api.start('blue', 'club');
-    api.game.start('blue', 'club', 1);
+    api.start('blue', difficulty);
+    api.game.start('blue', difficulty, 1);
     api.game.advance(1);
     api.game.advance(.7);
     // Other cases cover rendering. Isolate input clock behavior from a software
@@ -186,21 +233,28 @@ test('a browser-timestamped shot event advances simulation between delayed rende
     api.scene.update = () => {};
     const callback = (window as any).__delayedFrames.shift();
     callback(performance.now());
-    const initial = { deliveryTime: api.game.deliveryTime, phase: api.game.phase };
+    const initial = { deliveryTime: api.game.deliveryTime, phase: api.game.phase, wallTime: performance.now() };
     // Create the DOM key event in the browser after a controlled frame gap.
     // This avoids CDP keyboard delivery overhead swamping a 0.5s pace ball.
     await new Promise(resolve => setTimeout(resolve, 80));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS', bubbles: true }));
     const game = api.game;
-    return { initial, committed: { shot: game.shot, deliveryTime: game.deliveryTime, inputs: game.inputLog.length, phase: game.phase, paused: game.paused } };
-  });
+    const committed = { shot: game.shot, deliveryTime: game.deliveryTime, inputs: game.inputLog.length, phase: game.phase, paused: game.paused, wallTime: performance.now() };
+    (window as any).__delayedFrames.shift()(performance.now());
+    return { initial, committed, scale: game.timeScale, afterFrame: { deliveryTime: game.deliveryTime, wallTime: performance.now() } };
+  }, difficulty);
   const { initial, committed } = result;
   expect(initial.phase).toBe('delivery');
   expect(committed.inputs, JSON.stringify({ initial, committed })).toBe(1);
   expect(committed.shot.type).toBe('ground');
-  expect(committed.shot.committedAt).toBeGreaterThanOrEqual(initial.deliveryTime + .07);
+  expect(result.scale).toBe(({ beginner: .55, club: .70, pro: .85 })[difficulty]);
+  const expected = (committed.wallTime - initial.wallTime) / 1000 * result.scale;
+  expect(Math.abs(committed.shot.committedAt - initial.deliveryTime - expected)).toBeLessThan(2 / 120);
   expect(committed.shot.committedAt).toBe(committed.deliveryTime);
+  const total = (result.afterFrame.wallTime - initial.wallTime) / 1000 * result.scale;
+  expect(Math.abs(result.afterFrame.deliveryTime - initial.deliveryTime - total)).toBeLessThan(2 / 120);
 });
+}
 
 test('real seeded loft trajectories reach victory and Play Again resets the chase', async ({ page }) => {
   await openDebug(page);
@@ -283,7 +337,7 @@ test('Home returns from a completed chase to the main menu', async ({ page }) =>
   expect(await page.evaluate(() => (window as any).__cricket.game.match)).toBeNull();
 });
 
-test('live ball tracker follows an actual off-screen loft while the batting camera stays fixed', async ({ page }) => {
+test('camera follows real outgoing flight, tracker covers its limits, and the next ball resets the view', async ({ page }) => {
   await openDebug(page);
   const before = await page.evaluate(async () => {
     const api = (window as any).__cricket;
@@ -297,6 +351,7 @@ test('live ball tracker follows an actual off-screen loft while the batting came
     api.ui.drawTracker(!api.scene.isBallVisible(api.game.ball.position), api.game.ball.position);
     return {
       camera: api.scene.camera.matrixWorld.toArray(),
+      cameraPosition: api.scene.camera.position.toArray(),
       incoming: { ...api.game.ball.position },
       phase: api.game.phase,
     };
@@ -312,34 +367,177 @@ test('live ball tracker follows an actual off-screen loft while the batting came
     const { CONFIG } = await import(configPath);
     const { selectStroke } = await import(battingPath);
     const d = api.game.delivery;
-    const direction = d.contact.x < -.12 ? 'cover' : d.contact.x > .12 ? 'longOn' : 'straight';
+    const direction = d.contact.x < 0 ? 'point' : 'leg';
     const inputAt = d.arrival - CONFIG.lead[selectStroke(d, 'loft', direction)];
     while (api.game.deliveryTime + 1e-10 < inputAt) api.game.advance(CONFIG.step);
     api.game.commit('loft', direction);
-    for (let tick = 0; tick < 120 * 20; tick++) {
-      api.game.advance(CONFIG.step);
-      if (api.game.phase === 'outgoing' && !api.scene.isBallVisible(api.game.ball.position)) break;
+    const render = api.scene.renderer.render;
+    // Exercise all presentation updates while avoiding hundreds of redundant
+    // software-GPU draws. Render the captured frame once below.
+    api.scene.renderer.render = () => {};
+    try {
+      for (let tick = 0; tick < 120 * 20; tick++) {
+        api.game.advance(CONFIG.step);
+        api.scene.update(api.game.frame());
+        if (api.game.phase === 'outgoing' && api.game.phaseTime > .35 && !api.scene.isBallVisible(api.game.ball.position)) break;
+      }
+    } finally {
+      api.scene.renderer.render = render;
     }
+    const physicsBefore = JSON.stringify({ ball: api.game.ball, match: api.game.match, delivery: api.game.delivery });
     api.scene.update(api.game.frame());
+    const physicsAfter = JSON.stringify({ ball: api.game.ball, match: api.game.match, delivery: api.game.delivery });
     api.ui.update();
     api.ui.drawTracker(!api.scene.isBallVisible(api.game.ball.position), api.game.ball.position);
     const pixels = (document.querySelector('#tracker-canvas') as HTMLCanvasElement).getContext('2d')!.getImageData(0, 0, 200, 200).data;
     return {
       camera: api.scene.camera.matrixWorld.toArray(),
+      cameraPosition: api.scene.camera.position.toArray(),
       phase: api.game.phase,
       visible: api.scene.isBallVisible(api.game.ball.position),
       position: { ...api.game.ball.position },
       contact: api.game.contactDebug,
       drawn: pixels.some((value: number) => value > 0),
+      unchanged: physicsBefore === physicsAfter,
     };
   });
   expect(after.phase).toBe('outgoing');
   expect(after.visible).toBe(false);
   expect(after.contact).not.toBeNull();
   expect(after.drawn).toBe(true);
-  expect(after.camera).toEqual(before.camera);
+  expect(after.camera).not.toEqual(before.camera);
+  expect(after.cameraPosition).toEqual(before.cameraPosition);
+  expect(after.unchanged).toBe(true);
   await expect(page.locator('#tracker')).toBeVisible();
   await page.screenshot({ path: 'tests/artifacts/gameplay-tracker.png' });
+  const reset = await page.evaluate(() => {
+    const api = (window as any).__cricket;
+    for (let tick = 0; tick < 120 * 60 && api.game.phase !== 'runup'; tick++) api.game.advance(1 / 120);
+    api.scene.update(api.game.frame());
+    return { phase: api.game.phase, camera: api.scene.camera.matrixWorld.toArray() };
+  });
+  expect(reset.phase).toBe('runup');
+  expect(reset.camera).toEqual(before.camera);
+});
+
+test('visible release, historical trail and bounce/contact effects follow actual physics and pause', async ({ page }) => {
+  await openDebug(page);
+  const release = await page.evaluate(() => {
+    const api = (window as any).__cricket;
+    api.game.debug = false;
+    api.start('blue', 'beginner');
+    api.game.start('blue', 'beginner', 0);
+    while (api.game.phase === 'runup') api.game.advance(1 / 120);
+    api.scene.update(api.game.frame());
+    api.ui.update();
+    const visual = api.scene.scene.getObjectByName('live-cricket-ball');
+    return { visible: visual.visible, scale: visual.scale.x, visualPosition: visual.position.toArray(), physicalPosition: Object.values(api.game.ball.position) };
+  });
+  expect(release.visible).toBe(true);
+  expect(release.scale).toBeGreaterThan(1);
+  expect(release.visualPosition).toEqual(release.physicalPosition);
+  await page.screenshot({ path: 'tests/artifacts/v03-release.png' });
+
+  const bounce = await page.evaluate(async () => {
+    const api = (window as any).__cricket;
+    const configPath = '/src/core/config.ts', battingPath = '/src/batting/batting.ts';
+    const { CONFIG } = await import(configPath), { selectStroke } = await import(battingPath);
+    const d = api.game.delivery;
+    const direction = d.contact.x < -.12 ? 'cover' : d.contact.x > .12 ? 'longOn' : 'straight';
+    const at = d.arrival - CONFIG.lead[selectStroke(d, 'loft', direction)];
+    const render = api.scene.renderer.render;
+    api.scene.renderer.render = () => {};
+    try {
+      while (api.game.deliveryTime + 1e-10 < at) { api.game.advance(CONFIG.step); api.scene.update(api.game.frame()); }
+      api.game.commit('loft', direction);
+      while (api.game.phase === 'delivery' && !api.game.ball.bounced) { api.game.advance(CONFIG.step); api.scene.update(api.game.frame()); }
+    } finally { api.scene.renderer.render = render; }
+    api.scene.update(api.game.frame());
+    api.ui.update();
+    const pulse = api.scene.scene.getObjectByName('actual-bounce-pulse');
+    return { visible: pulse.visible, x: pulse.position.x, z: pulse.position.z, expected: d.bounce, bounced: api.game.ball.bounced,
+      trailVertices: api.scene.scene.getObjectByName('observed-ball-trail').geometry.drawRange.count, radius: CONFIG.ballRadius };
+  });
+  expect(bounce.bounced).toBe(true);
+  expect(bounce.visible).toBe(true);
+  expect(bounce.x).toBeCloseTo(bounce.expected.x, 8);
+  expect(bounce.z).toBeCloseTo(bounce.expected.z, 8);
+  expect(bounce.trailVertices).toBeGreaterThan(0);
+  expect(bounce.radius).toBe(.036);
+  await page.screenshot({ path: 'tests/artifacts/v03-bounce.png' });
+
+  const contact = await page.evaluate(() => {
+    const api = (window as any).__cricket;
+    while (api.game.phase === 'delivery') api.game.advance(1 / 120);
+    for (let tick = 0; tick < 5; tick++) api.game.advance(1 / 120);
+    api.scene.update(api.game.frame());
+    api.ui.update();
+    const pulse = api.scene.scene.getObjectByName('actual-contact-pulse');
+    const before = { time: api.game.time, ball: structuredClone(api.game.ball), opacity: pulse.children[0].material.opacity, camera: api.scene.camera.matrixWorld.toArray() };
+    api.game.togglePause();
+    api.game.advanceRealTime(20);
+    api.scene.update(api.game.frame());
+    const after = { time: api.game.time, ball: structuredClone(api.game.ball), opacity: pulse.children[0].material.opacity, camera: api.scene.camera.matrixWorld.toArray() };
+    return { visible: pulse.visible, phase: api.game.phase, point: pulse.position.toArray(), expected: Object.values(api.game.contactDebug.point), before, after };
+  });
+  expect(contact.phase).toBe('outgoing');
+  expect(contact.visible).toBe(true);
+  expect(contact.point).toEqual(contact.expected);
+  expect(contact.after).toEqual(contact.before);
+  await expect(page.locator('#feedback-quality')).toHaveText('PERFECT!');
+  await page.screenshot({ path: 'tests/artifacts/v03-contact.png' });
+
+  const droppedFrame = await page.evaluate(() => {
+    const api = (window as any).__cricket;
+    api.game.menu(); api.scene.update(api.game.frame());
+    api.game.start('blue', 'beginner', 0);
+    // No rendered frame between delivery preparation, release and actual bounce.
+    while (api.game.phase === 'runup' || !api.game.ball?.bounced) api.game.advance(1 / 120);
+    api.scene.update(api.game.frame());
+    return api.scene.scene.getObjectByName('actual-bounce-pulse').visible;
+  });
+  expect(droppedFrame).toBe(true);
+});
+
+test('timing feedback distinguishes physical early/late contact from a perfectly timed geometric miss', async ({ page }) => {
+  await openDebug(page);
+  const results = await page.evaluate(async () => {
+    const api = (window as any).__cricket;
+    const configPath = '/src/core/config.ts', battingPath = '/src/batting/batting.ts';
+    const { CONFIG } = await import(configPath), { selectStroke } = await import(battingPath);
+    const results = [];
+    for (const fixture of [
+      { seed: 0, type: 'loft', direction: 'longOn', offset: -.13, ball: 0 },
+      { seed: 5, type: 'ground', direction: 'cover', offset: .075, ball: 0 },
+      { seed: 23, type: 'defend', direction: 'fineLeg', offset: 0, ball: 6 },
+    ]) {
+      api.start('blue', 'club');
+      api.game.start('blue', 'club', fixture.seed);
+      api.game.debug = false;
+      for (let tick = 0; tick < 120 * 180 && api.game.match.balls <= fixture.ball; tick++) {
+        const game = api.game;
+        if (game.match.balls === fixture.ball && game.phase === 'delivery' && !game.shot) {
+          const d = game.delivery;
+          const at = d.arrival - CONFIG.lead[selectStroke(d, fixture.type, fixture.direction)] + fixture.offset;
+          if (game.deliveryTime + 1e-10 >= at) game.commit(fixture.type, fixture.direction);
+        }
+        game.advance(CONFIG.step);
+      }
+      api.ui.update();
+      results.push({ quality: api.game.outcome.quality, timingError: api.game.outcome.timingError, contact: !!api.game.contactDebug,
+        label: document.querySelector('#feedback-quality')!.textContent, note: document.querySelector('#feedback-note')!.textContent });
+    }
+    api.scene.update(api.game.frame());
+    return results;
+  });
+  expect(results[0]).toMatchObject({ quality: 'mistimed', contact: true, label: 'EARLY' });
+  expect(results[0].note).toContain('later');
+  expect(results[1]).toMatchObject({ quality: 'good', contact: true, label: 'LATE' });
+  expect(results[1].note).toContain('sooner');
+  expect(results[2]).toMatchObject({ quality: 'miss', contact: false, label: 'MISSED' });
+  expect(Math.abs(results[2].timingError)).toBeLessThan(1 / 120);
+  expect(results[2].note).toContain('direction or shot');
+  await page.screenshot({ path: 'tests/artifacts/v03-geometric-miss.png' });
 });
 
 test('all three difficulties complete real seeded chases in the browser simulation', async ({ page }) => {

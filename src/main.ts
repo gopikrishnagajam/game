@@ -14,10 +14,10 @@ let input:InputManager;
 let last=performance.now(),lastUI=0;
 let running=true,manualClock=false;
 const game=new CricketGame({
-  bounce:()=>audio.bounce(),
-  contact:o=>{audio.contact(o.quality);ui?.contact(o);},
+  bounce:(point,time)=>{audio.bounce();scene?.bounce(point,time);},
+  contact:o=>{audio.contact(o.quality);if(game.ball)scene?.contact(game.ball.position,game.time,o.quality);ui?.contact(o);},
   result:o=>{if(o.wicket)audio.wicket();else if(o.runs>=4)audio.boundary();},
-  next:()=>{input?.unlock();},
+  next:()=>{input?.unlock();scene?.resetDelivery();},
 });
 let scene:CricketScene;
 try {scene=new CricketScene(viewport);} catch(error) {
@@ -32,16 +32,17 @@ ui=new GameUI(app,game,{start,sound:()=>{void audio.unlock();return audio.toggle
 input=new InputManager((type,direction,timestamp)=>{
   // A key can arrive between rendered frames. Bring the same fixed-step clock
   // up to its timestamp before committing, preserving timing at low render FPS.
-  if(!manualClock){const now=Math.max(last,Math.min(performance.now(),timestamp));game.advance((now-last)/1000);last=now;}
+  if(!manualClock){const now=Math.max(last,Math.min(performance.now(),timestamp));game.advanceRealTime((now-last)/1000);last=now;}
   return game.commit(type,direction);
-},()=>game.advancePresentation(),pause,()=>ui.direction(input.direction));
+},()=>game.advancePresentation(),pause,()=>ui.direction(input.direction),
+()=>!game.paused && (game.phase==='runup'||game.phase==='delivery'));
 
 const debug=import.meta.env.DEV && new URLSearchParams(location.search).has('debug');
 game.debug=debug;
 function frame(now:number) {
   if(!running)return;
   now=Math.max(now,last);const dt=(now-last)/1000;last=now;
-  game.advance(dt);
+  game.advanceRealTime(dt);
   scene.update(game.frame());
   if(now-lastUI>33){ui.update();lastUI=now;}
   const visible=game.ball?!scene.isBallVisible(game.ball.position):false;

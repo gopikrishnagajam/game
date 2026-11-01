@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import type { RenderFrame, Vec3 } from '../core/types';
+import type { Quality, RenderFrame, Vec3 } from '../core/types';
 import { CONFIG } from '../core/config';
 import { RNG } from '../core/math';
 import { CricketPlayer } from './player';
+import { BallTrail, followCameraTarget, PRESENTATION, smoothApproach, visualBallScale } from './presentation';
 
 const material=(color:string,roughness=0.9)=>new THREE.MeshStandardMaterial({color,roughness});
-const UP=new THREE.Vector3(0,1,0);
 
 function canvasTexture(width:number,height:number,paint:(ctx:CanvasRenderingContext2D)=>void) {
   const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
@@ -20,9 +20,21 @@ export default class CricketScene {
   private batter=new CricketPlayer(true);
   private bowler=new CricketPlayer(false);
   private ball=new THREE.Group();
-  private heldBall:THREE.Mesh;
+  private heldBall:THREE.Group;
   private marker:THREE.Mesh;
   private shadow:THREE.Mesh;
+  private trailData=new BallTrail();
+  private trail:THREE.LineSegments;
+  private bouncePulse:THREE.Mesh;
+  private bounceTime=-Infinity;
+  private contactPulse:THREE.Group;
+  private contactTime=-Infinity;
+  private contactQuality:Quality='mistimed';
+  private cameraLook=new THREE.Vector3(0,CONFIG.camera.lookY,CONFIG.camera.lookZ);
+  private cameraTarget=new THREE.Vector3();
+  private lastTime=0;
+  private presentationDelivery=-1;
+  private followActive=false;
   private debugGroup=new THREE.Group();
   private stumpBails:THREE.Mesh[]=[];
   private lastDelivery=-1;
@@ -30,7 +42,6 @@ export default class CricketScene {
   private container:HTMLElement;
   private disposed=false;
   private testVector=new THREE.Vector3();
-  private noBall=new THREE.Vector3(0,0,0);
   constructor(container:HTMLElement) {
     this.container=container;
     this.scene.background=new THREE.Color('#b9d7df');
@@ -47,7 +58,7 @@ export default class CricketScene {
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.08;
-    this.renderer.domElement.setAttribute('aria-label','Fixed camera view of the Fun Cricket ground');
+    this.renderer.domElement.setAttribute('aria-label','Batting view of the Fun Cricket ground, following the ball after contact');
     this.renderer.domElement.style.cssText='width:100%;height:100%;display:block;';
     container.appendChild(this.renderer.domElement);
     const hemi=new THREE.HemisphereLight('#e7f2fc','#73835c',2.1);this.scene.add(hemi);
@@ -56,18 +67,53 @@ export default class CricketScene {
     sun.target.position.set(0,0,7);this.scene.add(sun,sun.target);
     this.buildGround();this.buildStadium();
     this.scene.add(this.batter.group,this.bowler.group);
-    const cricketBall=new THREE.Mesh(new THREE.SphereGeometry(CONFIG.ballRadius,16,12),new THREE.MeshStandardMaterial({color:'#fffbe9',roughness:0.44}));cricketBall.castShadow=true;this.ball.add(cricketBall);
-    const seamMat=new THREE.MeshStandardMaterial({color:'#d4ad91',roughness:0.8});
-    for(const offset of [-0.004,0.004]) {
-      const seam=new THREE.Mesh(new THREE.TorusGeometry(CONFIG.ballRadius,0.0008,3,24),seamMat);seam.position.z=offset;this.ball.add(seam);
-    }
-    this.scene.add(this.ball);
-    this.heldBall=new THREE.Mesh(new THREE.SphereGeometry(CONFIG.ballRadius,10,8),material('#fffbe9'));this.scene.add(this.heldBall);
-    this.marker=new THREE.Mesh(new THREE.RingGeometry(0.17,0.20,40),new THREE.MeshBasicMaterial({color:'#f5f8d5',transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));
+    this.ball=this.createBallVisual();this.ball.name='live-cricket-ball';this.scene.add(this.ball);
+    this.heldBall=this.createBallVisual();this.heldBall.name='bowler-held-ball';this.scene.add(this.heldBall);
+    const trailGeometry=new THREE.BufferGeometry();
+    trailGeometry.setAttribute('position',new THREE.BufferAttribute(this.trailData.positions,3).setUsage(THREE.DynamicDrawUsage));
+    trailGeometry.setAttribute('color',new THREE.BufferAttribute(this.trailData.colors,4).setUsage(THREE.DynamicDrawUsage));
+    trailGeometry.setDrawRange(0,0);
+    this.trail=new THREE.LineSegments(trailGeometry,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:PRESENTATION.trail.opacity,depthWrite:false,toneMapped:false}));
+    this.trail.name='observed-ball-trail';this.trail.frustumCulled=false;this.scene.add(this.trail);
+    this.marker=new THREE.Mesh(new THREE.RingGeometry(0.20,0.28,40),new THREE.MeshBasicMaterial({color:'#fff4ad',transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,toneMapped:false}));
+    const markerEdge=new THREE.Mesh(new THREE.RingGeometry(0.28,0.33,40),new THREE.MeshBasicMaterial({color:'#17352f',transparent:true,opacity:0.75,depthWrite:false,side:THREE.DoubleSide}));
+    markerEdge.position.z=-.001;this.marker.add(markerEdge);this.marker.name='delivery-bounce-marker';
     this.marker.rotation.x=-Math.PI/2;this.marker.position.y=0.012;this.scene.add(this.marker);
+    this.bouncePulse=new THREE.Mesh(new THREE.RingGeometry(0.17,0.22,40),new THREE.MeshBasicMaterial({color:'#ffe6a1',transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,toneMapped:false}));
+    this.bouncePulse.name='actual-bounce-pulse';this.bouncePulse.rotation.x=-Math.PI/2;this.bouncePulse.visible=false;this.scene.add(this.bouncePulse);
+    this.contactPulse=new THREE.Group();this.contactPulse.name='actual-contact-pulse';
+    const contactMat=new THREE.MeshBasicMaterial({color:'#fff2b2',transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
+    const contactRing=new THREE.Mesh(new THREE.RingGeometry(.72,1,24),contactMat);this.contactPulse.add(contactRing);
+    const rayGeo=new THREE.PlaneGeometry(.08,.60);
+    for(let i=0;i<6;i++){const ray=new THREE.Mesh(rayGeo,contactMat);const a=i*Math.PI/3;ray.position.set(Math.sin(a)*1.35,Math.cos(a)*1.35,0);ray.rotation.z=-a;this.contactPulse.add(ray);}
+    this.contactPulse.visible=false;this.scene.add(this.contactPulse);
     this.shadow=new THREE.Mesh(new THREE.CircleGeometry(0.10,20),new THREE.MeshBasicMaterial({color:'#172c22',transparent:true,opacity:0.18,depthWrite:false}));this.shadow.rotation.x=-Math.PI/2;this.scene.add(this.shadow);
     this.scene.add(this.debugGroup);
     this.resizeObserver=new ResizeObserver(()=>this.resize());this.resizeObserver.observe(container);this.resize();
+  }
+  private createBallVisual() {
+    const group=new THREE.Group();
+    const sphere=new THREE.SphereGeometry(CONFIG.ballRadius,16,12);
+    const outline=new THREE.Mesh(sphere,new THREE.MeshBasicMaterial({color:'#24352f',side:THREE.BackSide,toneMapped:false}));outline.scale.setScalar(1.16);group.add(outline);
+    const core=new THREE.Mesh(sphere,new THREE.MeshStandardMaterial({color:'#fffdf2',emissive:'#fff3cf',emissiveIntensity:.36,roughness:.42}));core.castShadow=true;group.add(core);
+    const seamMat=new THREE.MeshBasicMaterial({color:'#b54c38',toneMapped:false});
+    const seamGeo=new THREE.TorusGeometry(CONFIG.ballRadius,0.0011,3,24);
+    for(const offset of [-0.004,0.004]) {const seam=new THREE.Mesh(seamGeo,seamMat);seam.position.z=offset;group.add(seam);}
+    return group;
+  }
+  /** Called from actual physics events; effects never infer or move the ball. */
+  bounce(position:Vec3,time:number) {
+    this.bounceTime=time;this.bouncePulse.position.set(position.x,.014,position.z);
+  }
+  contact(position:Vec3,time:number,quality:Quality) {
+    this.contactTime=time;this.contactQuality=quality;this.contactPulse.position.set(position.x,position.y,position.z);
+    this.trailData.reset();this.followActive=true;
+  }
+  /** The simulation announces this boundary, even if no intervening frame renders. */
+  resetDelivery() {
+    this.trailData.reset();this.bounceTime=-Infinity;this.contactTime=-Infinity;this.followActive=false;
+    this.bouncePulse.visible=false;this.contactPulse.visible=false;
+    this.cameraLook.set(0,CONFIG.camera.lookY,CONFIG.camera.lookZ);this.camera.lookAt(this.cameraLook);
   }
   private add(geometry:THREE.BufferGeometry,mat:THREE.Material,x:number,y:number,z:number) {
     const mesh=new THREE.Mesh(geometry,mat);mesh.position.set(x,y,z);this.scene.add(mesh);return mesh;
@@ -188,12 +234,35 @@ export default class CricketScene {
   }
   update(frame:RenderFrame) {
     if(this.disposed)return;
+    const elapsed=Math.max(0,frame.time-this.lastTime);this.lastTime=frame.time;
+    if(frame.delivery?.id!==this.presentationDelivery) {
+      this.presentationDelivery=frame.delivery?.id??-1;this.trailData.reset();
+      // Pulse lifetimes are reset by the simulation's next-delivery event. A
+      // bounce/contact may already have happened before this first render.
+    }
+    // The incoming view is identical every delivery. Only a real struck ball can
+    // start a small, bounded follow; the live tracker handles shots outside it.
+    if(frame.phase==='outgoing')this.followActive=true;
+    if(this.followActive&&frame.ball&&(frame.phase==='outgoing'||frame.phase==='feedback')) {
+      followCameraTarget(frame.ball.position,this.cameraTarget);
+      this.cameraLook.set(smoothApproach(this.cameraLook.x,this.cameraTarget.x,elapsed),smoothApproach(this.cameraLook.y,this.cameraTarget.y,elapsed),smoothApproach(this.cameraLook.z,this.cameraTarget.z,elapsed));
+    } else {
+      this.followActive=false;this.cameraLook.set(0,CONFIG.camera.lookY,CONFIG.camera.lookZ);
+    }
+    this.camera.lookAt(this.cameraLook);
     this.batter.updateBatter(frame);this.bowler.updateBowler(frame);
     this.ball.visible=!!frame.ball&&frame.phase!=='runup';
     if(frame.ball) {
       const p=frame.ball.position;this.ball.position.set(p.x,p.y,p.z);this.ball.rotation.set(frame.time*8,frame.time*2,frame.time*5);
+      this.ball.scale.setScalar(visualBallScale(this.camera.position.distanceTo(this.ball.position),this.container.clientHeight,this.camera.fov));
       this.shadow.position.set(p.x,0.005,p.z);const s=1+Math.min(p.y,6)*0.15;this.shadow.scale.set(s,s,s);
       (this.shadow.material as THREE.MeshBasicMaterial).opacity=0.23/(1+p.y*0.2);
+    }
+    this.trail.visible=this.ball.visible&&(frame.phase==='delivery'||frame.phase==='outgoing'||frame.phase==='feedback');
+    if(this.trail.visible&&frame.ball) {
+      const count=this.trailData.update(frame.ball.position,frame.time);
+      this.trail.geometry.setDrawRange(0,count);
+      this.trail.geometry.attributes.position.needsUpdate=true;this.trail.geometry.attributes.color.needsUpdate=true;
     }
     this.shadow.visible=this.ball.visible;
     this.heldBall.visible=frame.phase==='runup';
@@ -206,10 +275,24 @@ export default class CricketScene {
         const action=Math.max(0,Math.min(1,(progress-.6)/.4));const a=-.2+action*action*(3-2*action)*Math.PI*1.1;
         this.heldBall.position.set(.265,1.42+Math.sin(a)*.55,rootZ-Math.cos(a)*.55);
       }
+      this.heldBall.scale.setScalar(visualBallScale(this.camera.position.distanceTo(this.heldBall.position),this.container.clientHeight,this.camera.fov));
     }
     this.marker.visible=frame.marker>0&&!!frame.delivery;
     if(frame.delivery) {this.marker.position.x=frame.delivery.bounce.x;this.marker.position.z=frame.delivery.bounce.z;}
-    (this.marker.material as THREE.MeshBasicMaterial).opacity=frame.marker*0.45;
+    const markerOpacity=Math.min(.90,frame.marker*2.2);
+    (this.marker.material as THREE.MeshBasicMaterial).opacity=markerOpacity;
+    ((this.marker.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity=markerOpacity*.9;
+    const bounceAge=frame.time-this.bounceTime;
+    this.bouncePulse.visible=bounceAge>=0&&bounceAge<PRESENTATION.bounce.duration&&(frame.phase==='delivery'||frame.phase==='outgoing'||frame.phase==='feedback');
+    if(this.bouncePulse.visible){const t=bounceAge/PRESENTATION.bounce.duration;this.bouncePulse.scale.setScalar(1+t*PRESENTATION.bounce.expansion);(this.bouncePulse.material as THREE.MeshBasicMaterial).opacity=(1-t)*.8;}
+    const contactAge=frame.time-this.contactTime;
+    this.contactPulse.visible=contactAge>=0&&contactAge<PRESENTATION.contact.duration&&(frame.phase==='outgoing'||frame.phase==='feedback');
+    if(this.contactPulse.visible){
+      const t=contactAge/PRESENTATION.contact.duration,perfect=this.contactQuality==='perfect';
+      this.contactPulse.quaternion.copy(this.camera.quaternion);
+      this.contactPulse.scale.setScalar(.025+t*(perfect?PRESENTATION.contact.perfectExpansion:PRESENTATION.contact.otherExpansion));
+      ((this.contactPulse.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity=(1-t)*(1-t)*(perfect?.85:.50);
+    }
     const bowled=frame.phase==='feedback'&&frame.outcome?.wicket==='bowled';
     for(let i=0;i<this.stumpBails.length;i++) {
       const bail=this.stumpBails[i];
@@ -232,7 +315,7 @@ export default class CricketScene {
     if(this.disposed)return;this.disposed=true;this.resizeObserver.disconnect();
     const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>(),textures=new Set<THREE.Texture>();
     this.scene.traverse(obj=>{
-      if(obj instanceof THREE.Mesh) {
+      if(obj instanceof THREE.Mesh||obj instanceof THREE.Line) {
         geometries.add(obj.geometry);for(const mat of Array.isArray(obj.material)?obj.material:[obj.material]) {materials.add(mat);for(const value of Object.values(mat))if(value instanceof THREE.Texture)textures.add(value);}
       }
     });for(const g of geometries)g.dispose();for(const m of materials)m.dispose();for(const t of textures)t.dispose();

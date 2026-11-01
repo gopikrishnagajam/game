@@ -1,6 +1,6 @@
 import { describe,expect,it } from 'vitest';
 import { CONFIG } from '../src/core/config';
-import { ARM_LOWER,ARM_UPPER,sampleBatPose,sampleBatterBody,sampleGripPoints,samplePadGeometry } from '../src/animation/pose';
+import { ARM_LOWER,ARM_UPPER,sampleBatPose,sampleBatterBody,sampleContactFollowThrough,sampleGripPoints,samplePadGeometry } from '../src/animation/pose';
 import type { Shot,Stroke } from '../src/core/types';
 
 function shot(stroke:Stroke='straightDrive',type:Shot['type']='ground',y=.7):Shot {
@@ -70,6 +70,60 @@ describe('authoritative authored animation geometry',()=>{
         const lead=CONFIG.lead[stroke];
         for(const age of [lead,lead+.03,lead+.08,lead+.16,lead+.35]) {
           const hands=sampleGripPoints(sampleBatPose(s,age,null)),body=sampleBatterBody(s,age,null,0);
+          for(const [shoulder,hand] of [[body.leftShoulder,hands[0]],[body.rightShoulder,hands[1]]]) {
+            expect(Math.hypot(shoulder.x-hand.x,shoulder.y-hand.y,shoulder.z-hand.z)).toBeLessThanOrEqual(ARM_UPPER+ARM_LOWER+.001);
+          }
+        }
+      }
+    }
+  });
+  it('preserves exact authoritative bat and body poses through the contact interval and every miss',()=>{
+    for(const stroke of ['straightDrive','coverDrive','loftStraight','cut','pull'] as Stroke[]) {
+      const s=shot(stroke,stroke==='loftStraight'?'loft':'ground');
+      const lead=CONFIG.lead[stroke];
+      for(const age of [0,lead-.12,lead,lead+.10]) {
+        const posed=sampleContactFollowThrough(s,age,null,2,true);
+        expect(posed.bat).toEqual(sampleBatPose(s,age,null,2));
+        expect(posed.body).toEqual(sampleBatterBody(s,age,null,2));
+      }
+      for(const age of [lead+.16,lead+.35,lead+.65]) {
+        const miss=sampleContactFollowThrough(s,age,null,2,false);
+        expect(miss.bat).toEqual(sampleBatPose(s,age,null,2));
+        expect(miss.body).toEqual(sampleBatterBody(s,age,null,2));
+      }
+    }
+  });
+  it('finishes a clean loft higher than a drive and recovers smoothly without changing blade length',()=>{
+    const drive=shot(),loft=shot('loftStraight','loft');
+    const d=sampleContactFollowThrough(drive,CONFIG.lead.straightDrive+.34,null,0,true);
+    const l=sampleContactFollowThrough(loft,CONFIG.lead.loftStraight+.34,null,0,true);
+    expect(l.bat.toe.y).toBeGreaterThan(d.bat.toe.y+.20);
+    expect(d.body.twist).toBeGreaterThan(sampleBatterBody(drive,CONFIG.lead.straightDrive+.34,null,0).twist);
+    for(const s of [drive,loft]) {
+      const lead=CONFIG.lead[s.stroke];
+      for(const after of [.119,.121,.29,.45,.65,.849,.851]) {
+        const pose=sampleContactFollowThrough(s,lead+after,null,3,true).bat;
+        const original=sampleBatPose(s,lead+after,null,3);
+        expect(Math.hypot(pose.heel.x-pose.toe.x,pose.heel.y-pose.toe.y,pose.heel.z-pose.toe.z)).toBeCloseTo(Math.hypot(original.heel.x-original.toe.x,original.heel.y-original.toe.y,original.heel.z-original.toe.z),10);
+        const next=sampleContactFollowThrough(s,lead+after+.00001,null,3,true).bat;
+        expect(Math.hypot(next.toe.x-pose.toe.x,next.toe.y-pose.toe.y,next.toe.z-pose.toe.z)).toBeLessThan(.001);
+      }
+      const recovered=sampleContactFollowThrough(s,lead+.86,null,3,true);
+      expect(recovered.bat).toEqual(sampleBatPose(null,0,null,3));
+      expect(recovered.body).toEqual(sampleBatterBody(s,lead+.86,null,3));
+    }
+  });
+  it('keeps the successful visual finish attached to reachable hands without moving pads',()=>{
+    for(const stroke of ['straightDrive','coverDrive','loftStraight','cut','pull'] as Stroke[]) {
+      for(const x of [-.3,0,.35])for(const y of stroke==='cut'||stroke==='pull'?[.65,1,1.3]:[.15,.7,1.3]) {
+        const s=shot(stroke,stroke==='loftStraight'?'loft':'ground',y);
+        s.target.x=x;s.angle=stroke==='coverDrive'?-Math.PI/4:stroke==='cut'?-Math.PI/2:stroke==='pull'?Math.PI/2:0;
+        for(const after of [.13,.2,.3,.4,.5,.65,.8]) {
+          const age=CONFIG.lead[stroke]+after;
+          const {bat,body}=sampleContactFollowThrough(s,age,null,0,true);
+          const hands=sampleGripPoints(bat),original=sampleBatterBody(s,age,null,0);
+          expect(body.leftFoot).toEqual(original.leftFoot);expect(body.rightFoot).toEqual(original.rightFoot);
+          expect(body.leftHip).toEqual(original.leftHip);expect(body.rightHip).toEqual(original.rightHip);
           for(const [shoulder,hand] of [[body.leftShoulder,hands[0]],[body.rightShoulder,hands[1]]]) {
             expect(Math.hypot(shoulder.x-hand.x,shoulder.y-hand.y,shoulder.z-hand.z)).toBeLessThanOrEqual(ARM_UPPER+ARM_LOWER+.001);
           }

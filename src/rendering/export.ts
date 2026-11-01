@@ -41,7 +41,10 @@ export async function exportOriginalCricketPlayer():Promise<ArrayBuffer> {
     for(let i=0;i<count;i++) {
       const t=i/(count-1)*duration;times.push(t);
       frame.time=t;frame.phaseTime=t;frame.shotAge=t;frame.shot=shot;
-      frame.milestone=family.name==='Milestone_Bat_Raise';frame.phase=frame.milestone?'feedback':'delivery';
+      frame.milestone=family.name==='Milestone_Bat_Raise';
+      // Bake the same verified-contact finish as the renderer. A missed-swing
+      // clip retains its ordinary recovery and never receives a hit flourish.
+      frame.phase=frame.milestone?'feedback':shot&&shot.quality!=='miss'&&t>=CONFIG.lead[shot.stroke]?'outgoing':'delivery';
       player.updateBatter(frame);
       nodes.forEach((node,index)=>{const v=values[index];v.p.push(node.position.x,node.position.y,node.position.z);v.q.push(node.quaternion.x,node.quaternion.y,node.quaternion.z,node.quaternion.w);v.s.push(node.scale.x,node.scale.y,node.scale.z);});
     }

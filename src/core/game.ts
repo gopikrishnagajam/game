@@ -10,7 +10,7 @@ import { sampleBatPose, samplePadGeometry } from '../animation/pose';
 import { sweepCapsule, sweepStumps } from '../physics/collision';
 
 export interface GameEvents {
-  bounce?: () => void;
+  bounce?: (point: Vec3, time: number) => void;
   contact?: (outcome: Outcome) => void;
   result?: (outcome: Outcome) => void;
   next?: () => void;
@@ -79,6 +79,14 @@ export class CricketGame {
       this.paused=!this.paused;this.accumulator=0;
     }
   }
+  get timeScale(): number {
+    return this.match ? CONFIG.difficulty[this.match.difficulty].timeScale : 1;
+  }
+  /** Browser wall time enters here once, for both frames and timestamped input.
+   * advance() remains simulation time for deterministic scenarios and replay. */
+  advanceRealTime(elapsed: number) {
+    this.advance(elapsed * this.timeScale);
+  }
   advance(elapsed: number) {
     if(this.paused || this.phase==='menu' || this.phase==='setup' || this.phase==='complete')return;
     this.accumulator+=Math.max(0,elapsed);
@@ -108,7 +116,7 @@ export class CricketGame {
     const previous=copy(this.ball.position);
     const incoming=copy(this.ball.velocity);
     const physics=stepBall(this.ball,dt,this.phase==='delivery'?this.delivery:null,this.phase==='outgoing');
-    if(physics.bounced)this.events.bounce?.();
+    if(physics.bounced && physics.landing)this.events.bounce?.(physics.landing,this.time);
 
     if(this.phase==='delivery') {
       const shot=this.shot;

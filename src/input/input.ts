@@ -19,6 +19,7 @@ export class InputManager {
     private onAdvance: () => void,
     private onPause: () => void,
     private onDirection: () => void,
+    private canAim: () => boolean = () => true,
   ) {
     window.addEventListener('keydown', this.down);
     window.addEventListener('keyup', this.up);
@@ -30,13 +31,13 @@ export class InputManager {
     const target = event.target instanceof HTMLElement ? event.target : null;
     if (event.defaultPrevented || document.querySelector('dialog[open]') || target?.isContentEditable || target?.closest('input, textarea, select')) return;
     if (event.code === 'Space' && target?.closest('button, a[href], [role="button"]')) return;
-    if (event.code.startsWith('Arrow')) {
+    if (event.code.startsWith('Arrow') && this.canAim()) {
       event.preventDefault();
       this.held.add(event.code);
       if (!this.locked) { this.direction = resolveDirection(this.held, this.direction); this.onDirection(); }
     }
     const shot: Record<string, ShotType> = { KeyA: 'defend', KeyS: 'ground', KeyD: 'loft' };
-    if (shot[event.code]) {
+    if (shot[event.code] && this.canAim()) {
       event.preventDefault();
       if (event.repeat || this.shotHeld.has(event.code)) return;
       this.shotHeld.add(event.code);
@@ -48,7 +49,13 @@ export class InputManager {
   private up = (event: KeyboardEvent) => { this.held.delete(event.code); this.shotHeld.delete(event.code); };
   clear = () => { this.held.clear(); this.shotHeld.clear(); };
   reset() { this.clear(); this.locked = false; this.direction = 'straight'; }
-  unlock() { this.locked = false; }
+  unlock() {
+    this.locked = false;
+    // A held aim may have changed while the preceding stroke was locked.
+    // Adopt it for the run-up; with no held arrows keep the last selection.
+    this.direction = resolveDirection(this.held, this.direction);
+    this.onDirection();
+  }
   dispose() {
     window.removeEventListener('keydown', this.down); window.removeEventListener('keyup', this.up);
     window.removeEventListener('blur', this.clear);

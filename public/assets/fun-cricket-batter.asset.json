@@ -1,6 +1,6 @@
 {
   "name": "Fun Cricket original articulated batter",
-  "bytes": 854744,
+  "bytes": 854832,
   "format": "GLB 2.0",
   "geometrySource": "src/rendering/player.ts",
   "animationSource": "src/animation/pose.ts",

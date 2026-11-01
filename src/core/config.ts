@@ -1,5 +1,5 @@
 export const CONFIG = {
-  version: 1,
+  version: 3,
   match: { overs: 2, ballsPerOver: 6, maxWickets: 3, rosterSize: 4 },
   step: 1 / 120,
   gravity: 9.81,
@@ -32,9 +32,9 @@ export const CONFIG = {
     },
   },
   timing: {
-    defend: { perfect: 0.070, good: 0.140, outer: 0.210 },
-    ground: { perfect: 0.045, good: 0.095, outer: 0.160 },
-    loft: { perfect: 0.035, good: 0.075, outer: 0.130 },
+    defend: { perfect: 0.080, good: 0.160, outer: 0.240 },
+    ground: { perfect: 0.065, good: 0.120, outer: 0.190 },
+    loft: { perfect: 0.050, good: 0.100, outer: 0.165 },
   },
   lead: {
     forwardDefense: 0.23, backDefense: 0.20, duck: 0.18,
@@ -43,9 +43,9 @@ export const CONFIG = {
     loftStraight: 0.28, loftDrive: 0.28, lateCut: 0.21,
   },
   difficulty: {
-    beginner: { target: 16, weights: [0.80, 0.15, 0.05], movement: 0.55, marker: 0.18, accuracy: 0.75 },
-    club: { target: 24, weights: [0.60, 0.30, 0.10], movement: 1, marker: 0.33, accuracy: 0.90 },
-    pro: { target: 32, weights: [0.45, 0.40, 0.15], movement: 1.30, marker: 0.53, accuracy: 1 },
+    beginner: { target: 16, timeScale: 0.55, weights: [0.80, 0.15, 0.05], movement: 0.55, marker: 0.18, accuracy: 0.75 },
+    club: { target: 24, timeScale: 0.70, weights: [0.60, 0.30, 0.10], movement: 1, marker: 0.33, accuracy: 0.90 },
+    pro: { target: 32, timeScale: 0.85, weights: [0.45, 0.40, 0.15], movement: 1.30, marker: 0.53, accuracy: 1 },
   },
   speed: { fast: [37.5, 41.67], medium: [31.94, 37.5], offSpin: [20.83, 26.39], legSpin: [20.83, 26.39] },
   physics: {

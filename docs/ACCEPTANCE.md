@@ -1,6 +1,17 @@
-# First-playable acceptance report
+# Fun Cricket v0.3 acceptance report
 
-Release: Fun Cricket v0.1, first edition prepared for user review on November 1, 2026. The full Quick Chase loop is implemented and the checks below pass. This report separates automated evidence from subjective human playtesting. Further development is held for the user's review.
+Release: Fun Cricket v0.3, implemented from the existing `dev/0.2` game. This release improves reaction time, visibility, timing feedback and batting presentation while retaining the full Quick Chase loop. This report separates automated evidence from subjective human playtesting.
+
+## v0.3 changes
+
+- Beginner runs at 55% gameplay speed, Club at 70%, Pro at 85%. Both rendered frames and timestamped keyboard events enter one real-time adapter before the unchanged 120 Hz simulation. Run-up, delivery, swing, outgoing flight and result presentation share that clock.
+- The physical ball radius remains 0.036 m. Only the display ball is enlarged, with a dark contour, bright core and short historical trail. The truthful late marker is clearer; a bounce pulse uses the actual swept landing event and survives a skipped first delivery frame.
+- Timing windows are widened in simulation time: defense 80/160/240 ms, grounded 65/120/190 ms, lofted 50/100/165 ms for perfect/good/outer limits. They remain independent of confidence and score. Real physical contact is still required.
+- Actual contact reports PERFECT, EARLY or LATE. A geometric miss reports MISSED even with perfect intended timing; no-input and successful-duck feedback are distinct. Feedback freezes with pause.
+- After verified contact, successful swings have a fuller quality-scaled follow-through and higher loft finish, with contact effects and richer synthesized impact sounds. The authoritative bat/pad curves are unchanged. Camera position stays fixed; bounded smooth pan follows only the actual outgoing ball and resets before the next delivery.
+- Direction can be prepared during run-up and carries between deliveries. Holding a shot key through release cannot trigger automatic batting. Pause and help block aim changes.
+
+Bowling velocities, gravity, bounce/turn, collision detection, tactical AI, confidence formulas, fielding/scoring, wickets and strike rotation retain their original rules. Seeded catch/drop/mishit scenario inputs were refreshed so they remain deliberately mistimed under the wider windows; their physical assertions were retained.
 
 ## Implemented scope
 
@@ -11,10 +22,10 @@ Release: Fun Cricket v0.1, first edition prepared for user review on November 1,
 | Bowling | Fast, medium, off-spin and leg-spin; pace then spin over; seeded weighted tactics and legal variation; immutable delivery/field before run-up; truthful late marker. Bowling/physics tests and complete matches. |
 | Fielding/scoring | Continuous geometric ground interception, finite rolling stop, boundary crossing, aerial first-landing rings, geometric catch/drop eligibility and confidence formula. Fielding and actual gameplay scenario tests. |
 | Confidence | Personal last-three raw execution records; neutral missing slots; initial 50%; fixed timing; bounded power/precision; current delivery uses pre-delivery value. Confidence, match and integration tests. |
-| Presentation | Original articulated 3D players, cricket equipment/strokes, stance/footwork/recovery, fixed camera/stadium, compact HUD, confidence meter, over history, actual off-screen tracker, synthesized sound, brief wickets and milestones. Browser screenshots and animation contracts. |
+| Presentation | Original articulated 3D players, protected contact poses, stronger successful follow-through, visible display ball/trail, actual bounce/contact pulses, stable incoming view with bounded outgoing follow, compact HUD, confidence, actual tracker and impact audio. Presentation/animation tests and browser screenshots. |
 | Application | Locally runnable static browser app, assets/fonts included, pause/focus handling, production debug exclusion, source/docs, automated tests and production build. Type check, build and browser smoke. |
 
-No visible fielders, keeper, umpire, non-striker, running, extras, dynamic camera, extra modes, progression, backend or online account dependency were added.
+No visible fielders, keeper, umpire, non-striker, running, extras, extra modes, progression, backend or online account dependency were added. The v0.3 request explicitly permits outgoing-ball camera follow; the incoming batting view remains stable.
 
 ## Verification commands
 
@@ -48,19 +59,19 @@ The browser suite uses Chromium through Playwright with software WebGL at 1440 Ã
 | N: early victory | `match.test.ts`, physical loft chase in game/browser tests |
 | O: odd sixth-ball runs | `match.test.ts` applies both swaps |
 | P: replacement confidence | `match.test.ts`, full game restart and confidence preservation tests |
-| Q: off-screen ball | Browser tracker uses actual world position; camera matrix stays unchanged |
-| R: frame-rate variation | Identical timestamped inputs at 30/60/144 Hz; native browser input between deferred frames |
+| Q: off-screen ball | Tracker uses actual world position outside bounded camera pan; camera position stays fixed and next delivery restores original orientation |
+| R: frame-rate variation | Identical complete matches at 30/60/144 Hz using each difficulty's scaled wall clock; browser timestamp/frame checks at all three speeds |
 | S: geometric equality | Ring thresholds, exact boundary, closed circle edges, tangencies and interception ties in `fielding.test.ts` |
 
 ## Presentation inspection and known limits
 
-The menu, setup, live scene, contact, tracker and results were inspected through captured browser screenshots. The original GLB export round-trips through the Three.js loader with sixteen animation clips. Animation tests check shared contact geometry, footwork, recovery and reachable arm positions.
+The menu, setup, release, bounce, contact, geometric miss, tracker and results were inspected through captured browser screenshots. The original GLB was refreshed with the successful follow-through and retains sixteen animation clips. Animation tests check unchanged contact/pad geometry, footwork, continuity, recovery, blade length and reachable hands.
 
 The sixteen scenarios in specification section 29.3 have automated coverage or corresponding deterministic mechanics checks, but **a human keyboard playtest of all sixteen has not been performed**. Batting feel, ball readability on different displays, target balance and repeated-match enjoyment still need user playtesting. Those subjective acceptance points are not marked conclusively passed.
 
 Character motion is original articulated animation with procedural joint positioning, not motion capture. The models are stylized. Aerodynamics use gravity, linear drag and configured movement; catches resolve at first landing; LBW uses actual pads plus a simplified legal-line/stump projection model. These are documented arcade simplifications.
 
-The 60 FPS hardware target has not been certified on a named consumer desktop GPU. Headless software WebGL is used for functional browser checks, not as a representative hardware benchmark. Desktop keyboard play is supported; mobile controls are outside v0.1.
+The 60 FPS hardware target has not been certified on a named consumer desktop GPU. Headless software WebGL is used for functional browser checks, not as a representative hardware benchmark. Trails use fixed storage and one line-segment draw; effects are brief and simple. Desktop keyboard play is supported; mobile controls are outside this release.
 
 ## Final check results
 
@@ -68,18 +79,18 @@ Verified on November 1, 2026, using Windows, Node.js 22.14.0 and Playwright Chro
 
 | Check | Result | Evidence |
 |---|---|---|
-| Unit and integration suite | 132 passed across 12 test files; zero failures | `tests/artifacts/unit-results.json` |
+| Unit and integration suite | 162 passed across 15 test files; zero failures | `tests/artifacts/unit-results.json` |
 | TypeScript | `npm run check` passed; final production build also runs `tsc --noEmit` | Build's typecheck plugin in `vite.config.ts` |
-| Browser suite | 12 passed; the separate production smoke is intentionally skipped in this development run | `tests/artifacts/browser-results.json`, `browser-run.log` |
+| Browser suite | 17 passed; the separate production smoke is intentionally skipped in this development run | `tests/artifacts/browser-results.json`, `browser-run.log` |
 | Production smoke | 1 passed against the final `dist/` build at `http://127.0.0.1:4173/` | `tests/artifacts/production-results.json`, `production.png`, `production-run.log` |
-| Production build | `npm run build` passed; complete static output in `dist/` | Main JS 69.71 kB and Three.js chunk 481.97 kB, before gzip |
+| Production build | `npm run build` passed; complete static output in `dist/` | Main JS 80.05 kB / 29.08 kB gzip; Three.js chunk 485.38 kB / 121.62 kB gzip |
 | Original character export | Loaded successfully through Three.js `GLTFLoader.parseAsync`; all 16 animation clips present | `public/assets/fun-cricket-batter.glb` and asset manifest |
 
-The browser suite verifies real physical victories and defeats, both teams, all three difficulty targets, shot locking and repeat suppression, focus-loss pause, input timestamps between render frames, fixed camera, live ball tracking and clean replay. The production smoke verifies team setup, pause, return to menu, zero external requests, and absence of developer hooks. Neither browser run reported page or console errors.
+The browser suite verifies real physical victories and defeats, both teams, all difficulty targets, run-up aiming, retained direction, no buffered shots, locking/repeat suppression, focus-loss pause, scaled between-frame input timing, bounded camera follow/reset, and clean replay. Release/trail/bounce/contact checks verify cosmetic effects use real events, the physical radius is unchanged, effects freeze with pause, and skipped frames retain bounce feedback. Another integrated case distinguishes physical early/late hits from an ideally timed geometric miss. The production smoke verifies team setup, pause, return to menu, zero external requests, and absence of developer hooks. Neither browser run reported page or console errors.
 
-The final interface fixes restore Home navigation from match results, Space activation of focused buttons, isolation of gameplay keys inside How to Play, prior pause state after closing help, and keyboard focus through screen and pause transitions. Three browser regressions cover the repaired behaviors. The match container's programmatic focus has no decorative outline; button focus remains visible.
+Existing Home navigation, Space activation of focused buttons, help/pause isolation and keyboard focus regressions also pass. The match container's programmatic focus has no decorative outline; button focus remains visible.
 
-An additional exploratory seeded audit ran 1,440 complete physical matches: 120 seeds across three difficulties and four strategies (no input, ideal defense, ground and loft). Every match completed without stalls, invalid positions, excess balls/wickets or roster errors. This audit supplements the repeatable checked-in test suite.
+The checked-in `pacing.test.ts` adds 15 regressions, including complete no-input and batted match comparisons at 30/60/144 FPS for every speed, exact trajectory/marker comparisons, pause and frame-debt preservation. The prior v0.1 exploratory audit of 1,440 matches is historical baseline evidence; the results above are the current v0.3 checks.
 
 To repeat the production smoke, keep `npm run preview` running and use a second PowerShell terminal:
 
@@ -92,4 +103,4 @@ node node_modules/@playwright/test/cli.js test --grep 'production build'
 
 Open `http://127.0.0.1:4173/` while the production preview is running. If it has stopped, run `npm run preview` in the project folder; rebuild with `npm run build` after source changes.
 
-Start a Beginner chase, then try Club and Pro. Check how early to press A/S/D, ball readability, stroke feedback, pause/help behavior, and One More Chase. Arrows aim, A defends/ducks, S plays along the ground, D attempts a loft, and Escape pauses. Human batting-feel acceptance and hardware performance certification remain pending this review; the automated results do not stand in for them.
+Start a Beginner chase, then try Club and Pro. Aim during run-up, watch release/bounce, then press A/S/D before arrival. Check whether the ball is easy to read, early/late advice helps the next swing, the outgoing pan is comfortable, and sound/contact feedback feels satisfying. Test pause/help and One More Chase. Arrows aim, A defends/ducks, S plays along the ground, D attempts a loft, and Escape pauses. Human batting-feel acceptance and hardware performance certification remain pending this review; the automated results do not stand in for them.

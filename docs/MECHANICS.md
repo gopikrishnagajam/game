@@ -1,6 +1,6 @@
 # Fun Cricket: architecture and mechanics
 
-The design authority is [`instructions.md`](../instructions.md). This document describes the implementation and its intentional arcade simplifications.
+The original design authority is `instructions.md` (local, untracked). The v0.3 gameplay-feel request supersedes its original timing thresholds and post-contact fixed-camera requirement. This document describes the current implementation and its intentional arcade simplifications.
 
 ## Ownership and module boundaries
 
@@ -19,7 +19,8 @@ The design authority is [`instructions.md`](../instructions.md). This document d
 | `confidence/confidence.ts` | Personal rolling history, confidence calculation and bounded quality/power/precision modifiers |
 | `fielding/fielding.ts` | Catching-zone eligibility, first landing, continuous interception and geometric runs |
 | `match/match.ts` | Batting roster, totals, personal records, replacement, strike changes and terminal results |
-| `rendering/scene.ts`, `rendering/player.ts` | Three.js scene, fixed camera and articulated original characters |
+| `rendering/scene.ts`, `rendering/player.ts` | Three.js scene, outgoing-ball camera follow and articulated original characters |
+| `rendering/presentation.ts` | Cosmetic ball size, fixed-storage historical trail and bounded camera-follow helpers |
 | `ui/ui.ts` | Menus, live scoreboard, confidence, feedback, off-screen tracker and results |
 | `audio/audio.ts` | Original synthesized contact, bounce, wicket and UI sounds |
 
@@ -31,7 +32,9 @@ Distances use meters and simulation time uses seconds. Y is up; +Z points from t
 
 `CONFIG.step = 1 / 120` sets a fixed 120 Hz simulation. The controller accumulates elapsed time and processes whole steps, preserving excess time instead of skipping collisions or scores. Before accepting a keyboard stroke between rendered frames, the application advances this same clock to the event timestamp; commitment then records simulation time. This avoids render-frame timing drift. Pause stops simulation progress; the application clears held keys on focus loss and resets accumulated time when pausing/resuming.
 
-The renderer samples the same simulation clock for characters and ball. `CONFIG.camera` sets the single fixed camera. Neither a boundary nor a wicket changes its position or orientation.
+`CricketGame.advanceRealTime(wallSeconds)` multiplies elapsed real time by the selected difficulty's `timeScale`: Beginner 0.55, Club 0.70, Pro 0.85. Both the animation frame and between-frame keyboard paths use this same adapter exactly once. Run-up, incoming/outgoing flight, swings and result presentation therefore share one scaled simulation clock. Gravity, velocity, bounce, spin, lead times and the fixed step are unchanged. `advance(simulationSeconds)` remains available to deterministic developer scenarios and never adds another scale.
+
+The renderer samples that simulation clock for characters, trail decay and effects; pause freezes their ages. `CONFIG.camera` defines the stable incoming view. After physical contact, rendering pans toward the actual outgoing ball using exponential smoothing, at most 0.36 radians of yaw and 0.32 radians of upward pitch. Camera position never changes, and run-up restores the original view exactly. Tracking cannot change the ball or scoring; the live tracker covers shots outside the bounded pan.
 
 ## Lifecycle and one delivery
 
@@ -72,11 +75,13 @@ Every delivery freezes its release position, initial velocity, variation, moveme
 
 The generator solves initial velocity for a legal line and selected length. `predictDelivery` advances an independent ball using the same `stepBall` function and fixed interval as live play. It records the bounce and interpolates arrival at the configured contact plane. The late pitch ring uses that predicted bounce. It fades toward pitching and never reveals post-bounce turn or a struck ball's future landing.
 
+The collision radius remains 0.036 m. Rendering scales the display ball by 1.65–2.6, with a white core, dark contour and red seam; it targets a roughly six-pixel release ball at the supported viewport. The short fading trail stores only observed positions in fixed arrays, caps its length and lifetime, and resets at each delivery/contact. A clearer pitch ring remains tied to the truthful reveal time. An expanding pulse is emitted at the actual swept ground impact, and a brief contact flash is emitted only by the real bat collision. Simulation delivery-boundary events reset cosmetic state so a dropped frame cannot erase a newly emitted bounce. No effect creates contact or changes a trajectory.
+
 Outgoing balls use the same gravity and drag. Ground contact dissipates bounce energy; sufficiently small hops settle into rolling. Rolling applies configured friction until finite stopping. Ball position is always a simulated world position; the game does not choose runs independently and then animate a suitable flight.
 
 ## Batting, timing and actual contact
 
-Arrow taps retain a direction until changed. Compatible held arrows form diagonals. Opposing arrows cancel their shared axis; if no axis remains, the last valid direction stays selected. The first accepted A/S/D press locks the delivery's shot. Repeated keydown events cannot trigger another swing.
+Arrow taps during run-up or incoming flight retain a direction until changed, including across deliveries. Compatible held arrows form diagonals. Opposing arrows cancel their shared axis; if no axis remains, the last valid direction stays selected. The first accepted A/S/D press after release locks the delivery's shot. Repeated keydown events cannot trigger another swing, and holding a shot key through release does not buffer automatic batting. Menus, pause and help cannot change aim.
 
 `selectStroke` uses shot intent, delivery length, contact height, and direction to choose defense, duck, drive, cut, pull, back-foot punch, late cut, or lofted drive. The authored motion supplies front/back-foot weight transfer, body rotation, hand positioning, preparation, follow-through and recovery. Assistance selects a movement; it does not ensure contact or safe placement.
 
@@ -87,17 +92,21 @@ ideal input time = expected ball arrival - animation lead time
 timing error = committed input time + lead time - expected arrival
 ```
 
-The initial fixed thresholds are:
+The v0.3 fixed thresholds, in simulation milliseconds, are:
 
 | Intent | Perfect | Good | Mistimed outer limit |
 |---|---:|---:|---:|
-| Defense | ±70 ms | ±140 ms | ±210 ms |
-| Grounded | ±45 ms | ±95 ms | ±160 ms |
-| Lofted | ±35 ms | ±75 ms | ±130 ms |
+| Defense | ±80 ms | ±160 ms | ±240 ms |
+| Grounded | ±65 ms | ±120 ms | ±190 ms |
+| Lofted | ±50 ms | ±100 ms | ±165 ms |
 
-These thresholds do not vary with confidence, difficulty or score. Timing labels describe execution rather than run outcomes. Physical overlap remains necessary even when the nominal timing label is good.
+These simulation thresholds do not vary with confidence, difficulty or score. Their real-time duration is the configured value divided by difficulty speed: a 65 ms grounded perfect window gives about 118 ms on Beginner, 93 ms on Club and 76 ms on Pro on either side of ideal input. Precision still affects raw execution continuously. Physical overlap remains necessary even when nominal timing is perfect.
+
+On real contact, the HUD reports PERFECT, EARLY or LATE using execution quality and signed timing error; early contact advises a later swing and late contact an earlier swing. An actual geometric miss always reports MISSED, even if intended timing was perfect. No-input balls explain that no shot was played; successful ducks report WELL LEFT. Feedback ages in simulation time so pause does not silently dismiss it.
 
 `sampleBatPose` returns the blade heel, toe, and face orientation at a given animation time. Both the renderer and collision code consume this pose. `sweptBatContact` checks the ball sphere against the moving oriented blade through subdivisions of the simulation step, then refines the first overlap. It returns an actual ball-center position and offset along the blade; the outgoing ball starts there. The ball is never moved to a predicted target to manufacture a hit.
+
+The stronger v0.3 finish uses `sampleContactFollowThrough` only after a verified hit and more than 0.12 simulation seconds past nominal impact. It preserves the shared contact region exactly, leaves miss animations and pad geometry unchanged, maintains blade length/reachable hands, and blends back into recovery. Lofted finishes are higher than grounded drives. Run-up backlift settles before release; post-impact head tracking uses the real ball. Synthesized sweet-spot sounds have a sharper transient and wooden body, with thinner sounds for weaker contact.
 
 Unsuitable direction choices change the target alignment and shot quality. Reach is bounded; a horizontal cut/pull blade stays at a plausible grip height so a low yorker can pass beneath an unsuitable stroke. Incoming speed, bat speed, contact offset, shot class, raw quality and confidence determine outgoing speed, deviation and launch angle. A bounded contact-energy curve makes very weak contacts trickle rather than retaining full swing power. Grounded S strokes never become catchable. A D attempt is classified as a genuine aerial stroke only when its raw contact quality passes the implementation's aerial threshold; weak failed lofts follow ground rules. A can produce a small physical deflection or a timed duck rather than a power shot.
 
@@ -174,6 +183,6 @@ For a continuing innings, replace a dismissed striker first, then swap strike fo
 
 The runtime builds original articulated geometry from `rendering/player.ts` and samples the original curves in `animation/pose.ts`. A portable GLB with baked clips is supplied in `public/assets`; its manifest and the export utility record how to rebuild it. Runtime simulation uses the source poses directly so exported clip sampling cannot introduce a second contact clock. Asset provenance is recorded in [`public/assets/LICENSES.md`](../public/assets/LICENSES.md).
 
-Use `core/config.ts` for match invariants and major numerical tuning: timing and leads, targets, confidence cap, delivery speeds/lengths/movement, bounce response, friction, field positions/radii, marker timing and camera. Keep locked v0.1 behavior intact when tuning. Geometry dimensions and authored movement curves are also defined in their source modules.
+Use `core/config.ts` for match invariants and major numerical tuning: gameplay speed, timing and leads, targets, confidence cap, delivery speeds/lengths/movement, bounce response, friction, field positions/radii, marker timing and base camera. Use `rendering/presentation.ts` for cosmetic visibility and camera-follow values. Geometry dimensions and authored movement curves are also defined in their source modules. Match, scoring, confidence and collision rules retain their original behavior.
 
 The field is presently circular. Aerodynamics are simplified drag/swing/spin rather than a fluid or seam simulation. Catching is the specified first-landing geometric arcade model, and defensive batting is not a full biomechanical simulation. Character motion is original authored articulated animation with procedural adjustment, not motion capture. Browser input is resolved on the fixed simulation clock rather than a sub-millisecond hardware timeline. This document does not claim measured hardware performance or completed human playtesting; acceptance evidence is maintained separately.

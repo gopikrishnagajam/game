@@ -129,12 +129,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 7930,
+                  "duration": 8408,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:06:29.674Z",
+                  "startTime": "2026-11-01T15:43:41.546Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -163,12 +163,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 20892,
+                  "duration": 16555,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:06:37.835Z",
+                  "startTime": "2026-11-01T15:43:50.163Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -197,12 +197,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 10721,
+                  "duration": 7161,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:06:58.752Z",
+                  "startTime": "2026-11-01T15:44:06.741Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -231,12 +231,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 8223,
+                  "duration": 6725,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:07:09.494Z",
+                  "startTime": "2026-11-01T15:44:13.924Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -265,12 +265,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3963,
+                  "duration": 2477,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:07:17.746Z",
+                  "startTime": "2026-11-01T15:44:20.663Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -281,6 +281,40 @@
           "id": "8b1bb1493a64c9fc3ab6-c5dea4049243b3e93582",
           "file": "game.spec.ts",
           "line": 108,
+          "column": 1
+        },
+        {
+          "title": "run-up aim is retained, held shots never auto-bat, and pause blocks aiming",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3694,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-01T15:44:23.154Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8b1bb1493a64c9fc3ab6-6de9aa4983d5a13733d6",
+          "file": "game.spec.ts",
+          "line": 140,
           "column": 1
         },
         {
@@ -299,12 +333,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3875,
+                  "duration": 3938,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:07:21.727Z",
+                  "startTime": "2026-11-01T15:44:26.889Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -314,11 +348,11 @@
           ],
           "id": "8b1bb1493a64c9fc3ab6-389f4a3c465791a3bd00",
           "file": "game.spec.ts",
-          "line": 140,
+          "line": 186,
           "column": 1
         },
         {
-          "title": "a browser-timestamped shot event advances simulation between delayed render frames",
+          "title": "a beginner timestamped shot and rendered frame share the scaled clock",
           "ok": true,
           "tags": [],
           "tests": [
@@ -333,12 +367,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1555,
+                  "duration": 1512,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:07:25.622Z",
+                  "startTime": "2026-11-01T15:44:30.857Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -346,9 +380,77 @@
               "status": "expected"
             }
           ],
-          "id": "8b1bb1493a64c9fc3ab6-8aa117afaca8503fcdbb",
+          "id": "8b1bb1493a64c9fc3ab6-863c3e293ce5ad360923",
           "file": "game.spec.ts",
-          "line": 169,
+          "line": 216,
+          "column": 1
+        },
+        {
+          "title": "a club timestamped shot and rendered frame share the scaled clock",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1453,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-01T15:44:32.385Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8b1bb1493a64c9fc3ab6-9f9a6307338f435b9c47",
+          "file": "game.spec.ts",
+          "line": 216,
+          "column": 1
+        },
+        {
+          "title": "a pro timestamped shot and rendered frame share the scaled clock",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1326,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-01T15:44:33.852Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8b1bb1493a64c9fc3ab6-9029f96b602464b40911",
+          "file": "game.spec.ts",
+          "line": 216,
           "column": 1
         },
         {
@@ -367,12 +469,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 6342,
+                  "duration": 4578,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:07:27.193Z",
+                  "startTime": "2026-11-01T15:44:35.193Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -382,7 +484,7 @@
           ],
           "id": "8b1bb1493a64c9fc3ab6-895de09085efcb9213de",
           "file": "game.spec.ts",
-          "line": 205,
+          "line": 259,
           "column": 1
         },
         {
@@ -401,12 +503,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 5588,
+                  "duration": 6279,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:07:33.550Z",
+                  "startTime": "2026-11-01T15:44:39.783Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -416,7 +518,7 @@
           ],
           "id": "8b1bb1493a64c9fc3ab6-3fc04b8102c0d781ec1e",
           "file": "game.spec.ts",
-          "line": 249,
+          "line": 303,
           "column": 1
         },
         {
@@ -435,12 +537,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4561,
+                  "duration": 4468,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:07:39.156Z",
+                  "startTime": "2026-11-01T15:44:46.087Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -450,11 +552,11 @@
           ],
           "id": "8b1bb1493a64c9fc3ab6-69c967cc5d43979ee56b",
           "file": "game.spec.ts",
-          "line": 271,
+          "line": 325,
           "column": 1
         },
         {
-          "title": "live ball tracker follows an actual off-screen loft while the batting camera stays fixed",
+          "title": "camera follows real outgoing flight, tracker covers its limits, and the next ball resets the view",
           "ok": true,
           "tags": [],
           "tests": [
@@ -469,12 +571,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 5854,
+                  "duration": 5036,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:07:43.777Z",
+                  "startTime": "2026-11-01T15:44:50.571Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -482,9 +584,77 @@
               "status": "expected"
             }
           ],
-          "id": "8b1bb1493a64c9fc3ab6-d666106596ccb732b159",
+          "id": "8b1bb1493a64c9fc3ab6-213a74ff463e10b859c1",
           "file": "game.spec.ts",
-          "line": 286,
+          "line": 340,
+          "column": 1
+        },
+        {
+          "title": "visible release, historical trail and bounce/contact effects follow actual physics and pause",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6420,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-01T15:44:55.622Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8b1bb1493a64c9fc3ab6-06276130843b5b9c8275",
+          "file": "game.spec.ts",
+          "line": 423,
+          "column": 1
+        },
+        {
+          "title": "timing feedback distinguishes physical early/late contact from a perfectly timed geometric miss",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4025,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-01T15:45:02.062Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8b1bb1493a64c9fc3ab6-75f4f901663822b5f6cd",
+          "file": "game.spec.ts",
+          "line": 502,
           "column": 1
         },
         {
@@ -503,12 +673,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3844,
+                  "duration": 3223,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:07:49.650Z",
+                  "startTime": "2026-11-01T15:45:06.104Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -518,7 +688,7 @@
           ],
           "id": "8b1bb1493a64c9fc3ab6-70392b43965800630f6c",
           "file": "game.spec.ts",
-          "line": 345,
+          "line": 543,
           "column": 1
         },
         {
@@ -534,7 +704,7 @@
                   "description": "Set CRICKET_PRODUCTION_URL to a running production preview to verify the built artifact.",
                   "location": {
                     "file": "C:\\Users\\gopik\\Desktop\\game\\tests\\browser\\game.spec.ts",
-                    "line": 383,
+                    "line": 581,
                     "column": 8
                   }
                 }
@@ -547,19 +717,19 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "skipped",
-                  "duration": 185,
+                  "duration": 216,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-01T15:07:53.507Z",
+                  "startTime": "2026-11-01T15:45:09.341Z",
                   "annotations": [
                     {
                       "type": "skip",
                       "description": "Set CRICKET_PRODUCTION_URL to a running production preview to verify the built artifact.",
                       "location": {
                         "file": "C:\\Users\\gopik\\Desktop\\game\\tests\\browser\\game.spec.ts",
-                        "line": 383,
+                        "line": 581,
                         "column": 8
                       }
                     }
@@ -572,7 +742,7 @@
           ],
           "id": "8b1bb1493a64c9fc3ab6-baa7f6bde9325c772535",
           "file": "game.spec.ts",
-          "line": 381,
+          "line": 579,
           "column": 1
         }
       ]
@@ -580,9 +750,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-01T15:06:27.388Z",
-    "duration": 86803.413,
-    "expected": 12,
+    "startTime": "2026-11-01T15:43:39.374Z",
+    "duration": 90803.66200000001,
+    "expected": 17,
     "skipped": 1,
     "unexpected": 0,
     "flaky": 0

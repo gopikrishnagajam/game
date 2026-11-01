@@ -80,7 +80,7 @@ describe('physical seeded gameplay scenarios', () => {
   });
 
   it('catches a deliberately mistimed physical loft at its first landing inside a fixed catch circle', () => {
-    const scenario = play(0, 'loft', 'longOn', -0.10);
+    const scenario = play(0, 'loft', 'longOn', -CONFIG.timing.loft.good - 0.03);
     expect(scenario.contact).not.toBeNull();
     expect(scenario.contact!.aerial).toBe(true);
     expect(scenario.outcome.quality).toBe('mistimed');
@@ -98,7 +98,7 @@ describe('physical seeded gameplay scenarios', () => {
   });
 
   it('drops an eligible seeded loft and awards its actual interior first-landing four', () => {
-    const scenario = play(36, 'loft', 'longOn', -0.08);
+    const scenario = play(74, 'loft', 'straight', -CONFIG.timing.loft.good - 0.01);
     expect(scenario.contact!.aerial).toBe(true);
     expect(scenario.outcome.quality).toBe('mistimed');
     expect(landsInCatchCircle(scenario)).toBe(true);
@@ -115,7 +115,7 @@ describe('physical seeded gameplay scenarios', () => {
   });
 
   it('classifies a failed D attempt by actual weak contact and resolves ground movement without a catch', () => {
-    const scenario = play(0, 'loft', 'late', -0.10);
+    const scenario = play(0, 'loft', 'longOn', -CONFIG.timing.loft.good - 0.04);
     expect(scenario.game.shot!.type).toBe('loft');
     expect(scenario.contact).not.toBeNull();
     expect(scenario.contact!.raw as number).toBeLessThan(CONFIG.batting.launch.aerialQualityThreshold);

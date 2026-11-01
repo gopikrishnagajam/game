@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BatPose, RenderFrame, Team, Vec3 } from '../core/types';
 import { CONFIG } from '../core/config';
 import { clamp, smooth, vec } from '../core/math';
-import { ARM_LOWER, ARM_UPPER, LEG_LENGTH, sampleBatPose, sampleBatterBody, sampleGripPoints, solveJoint } from '../animation/pose';
+import { ARM_LOWER, ARM_UPPER, LEG_LENGTH, sampleContactFollowThrough, sampleGripPoints, solveJoint } from '../animation/pose';
 
 const Y=new THREE.Vector3(0,1,0);
 const vector=(p:Vec3)=>new THREE.Vector3(p.x,p.y,p.z);
@@ -118,10 +118,18 @@ export class CricketPlayer {
   }
   updateBatter(frame:RenderFrame) {
     this.setTeam(frame.match?.team??'blue');
-    let shot=frame.shot;
+    const shot=frame.shot;
     const age=frame.shotAge;
-    const body=sampleBatterBody(shot,age,frame.delivery,frame.time);
-    let bat=sampleBatPose(shot,age,frame.delivery,frame.time);
+    const contacted=!!shot&&shot.stroke!=='duck'&&(frame.phase==='outgoing'||(frame.phase==='feedback'&&!!frame.outcome&&frame.outcome.quality!=='miss'));
+    const pose=sampleContactFollowThrough(shot,age,frame.delivery,frame.time,contacted);
+    const body=pose.body;
+    let bat=pose.bat;
+    if(frame.phase==='runup') {
+      // A small anticipatory backlift settles completely before the ball leaves
+      // the hand. It has no effect on the incoming bat or pad geometry.
+      const prepare=Math.sin(Math.PI*clamp(frame.phaseTime/(CONFIG.runup*.90)))**2;
+      bat={heel:vec(bat.heel.x,bat.heel.y+.11*prepare,bat.heel.z-.06*prepare),toe:vec(bat.toe.x,bat.toe.y+.11*prepare,bat.toe.z-.06*prepare),face:bat.face};
+    }
     if(frame.milestone&&frame.phase==='feedback') {
       const t=Math.sin(Math.PI*clamp(frame.phaseTime/1.1));
       bat={heel:vec(0.1,1.22+0.3*t,0.08),toe:vec(-0.1*t,0.55+1.65*t,0.10),face:vec(0,0,-1)};
@@ -131,7 +139,12 @@ export class CricketPlayer {
     const leftElbow=solveJoint(body.leftShoulder,gripA,ARM_UPPER,ARM_LOWER,vec(-1,-0.4,-0.4));
     const rightElbow=solveJoint(body.rightShoulder,gripB,ARM_UPPER,ARM_LOWER,vec(1,-0.5,-0.5));
     this.poseBody(body.hip,body.chest,body.head,body.leftShoulder,body.rightShoulder,body.leftHip,body.rightHip,body.leftFoot,body.rightFoot,leftElbow,rightElbow,gripA,gripB,body.twist);
-    this.head.rotation.y=-0.15;this.head.rotation.x=0.15+body.duck*0.3;
+    const watch=contacted&&frame.ball?smooth((age-(shot?CONFIG.lead[shot.stroke]:0))/.24):0;
+    const ball=frame.ball?.position;
+    const yaw=ball?clamp(Math.atan2(ball.x-body.head.x,ball.z-body.head.z),-.65,.65):-.15;
+    const pitch=ball?clamp(-Math.atan2(ball.y-body.head.y,Math.hypot(ball.x-body.head.x,ball.z-body.head.z)),-.30,.35):.15;
+    this.head.rotation.y=-.15+(yaw+.15)*watch;
+    this.head.rotation.x=.15+body.duck*.3+(pitch-.15)*watch;
   }
   private poseBody(hip:Vec3,chest:Vec3,head:Vec3,leftShoulder:Vec3,rightShoulder:Vec3,leftHip:Vec3,rightHip:Vec3,leftFoot:Vec3,rightFoot:Vec3,leftElbow:Vec3,rightElbow:Vec3,leftHand:Vec3,rightHand:Vec3,twist:number) {
     const torso=vector(chest).sub(vector(hip));

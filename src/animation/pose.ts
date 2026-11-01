@@ -138,6 +138,49 @@ export function sampleBatterBody(shot:Shot|null,age:number,delivery:Delivery|nul
   };
 }
 
+/** A finish after verified contact. The original contact/pad curves above remain
+ * authoritative; a miss never receives this follow-through. At and around impact
+ * this is exactly the shared pose, so visible wood and collision stay aligned. */
+export function sampleContactFollowThrough(shot:Shot|null,age:number,delivery:Delivery|null,time:number,contacted:boolean):{bat:BatPose;body:BodyPose} {
+  const bat=sampleBatPose(shot,age,delivery,time);
+  const body=sampleBatterBody(shot,age,delivery,time);
+  if(!contacted||!shot||shot.type==='defend'||shot.stroke==='duck'||shot.raw<0.35)return {bat,body};
+  const after=age-CONFIG.lead[shot.stroke];
+  const finish=smooth((after-.12)/.17)*(1-smooth((after-.45)/.40));
+  if(finish<=0)return {bat,body};
+  const strength=finish*clamp(shot.raw);
+  const loft=shot.type==='loft';
+  const horizontal=shot.stroke==='cut'||shot.stroke==='pull'||shot.stroke==='lateCut';
+  const topHand=sampleGripPoints(bat)[1];
+  // Roll the blade over the lead shoulder about the top hand. Lofted drives
+  // finish taller; cuts and pulls retain their horizontal, across-body finish.
+  const axis=vec(bat.heel.x-bat.toe.x,bat.heel.y-bat.toe.y,bat.heel.z-bat.toe.z);
+  const length=Math.hypot(axis.x,axis.y,axis.z)||1;
+  axis.x/=length;axis.y/=length;axis.z/=length;
+  const end=horizontal?vec(-Math.sin(shot.angle)*.92,-.10,-.36):vec(-Math.sin(shot.angle)*.38,loft?-.82:-.48,loft?-.52:-.80);
+  const blended=mix(axis,end,strength);
+  const magnitude=Math.hypot(blended.x,blended.y,blended.z)||1;
+  blended.x/=magnitude;blended.y/=magnitude;blended.z/=magnitude;
+  topHand.y+=(loft?.10:.035)*strength;
+  const finished:BatPose={
+    heel:vec(topHand.x-blended.x*.22,topHand.y-blended.y*.22,topHand.z-blended.z*.22),
+    toe:vec(topHand.x-blended.x*(length+.22),topHand.y-blended.y*(length+.22),topHand.z-blended.z*(length+.22)),
+    face:bat.face,
+  };
+  const hands=sampleGripPoints(finished);
+  const midpoint=vec((hands[0].x+hands[1].x)/2,(hands[0].y+hands[1].y)/2,(hands[0].z+hands[1].z)/2);
+  const dx=clamp(midpoint.x+.12-body.chest.x,-.10,.10)*strength;
+  const dy=clamp(midpoint.y+.17-body.chest.y,-.08,.12)*strength;
+  const dz=clamp(midpoint.z-.22-body.chest.z,-.10,.10)*strength;
+  body.chest=vec(body.chest.x+dx,body.chest.y+dy,body.chest.z+dz);
+  body.head=vec(body.head.x+dx,body.head.y+dy,body.head.z+dz);
+  body.twist+=(.20+Math.sin(shot.angle)*.18)*strength;
+  const shoulderDx=Math.cos(body.twist)*.205,shoulderDz=Math.sin(body.twist)*.205;
+  body.leftShoulder=vec(body.chest.x-shoulderDx,body.chest.y+.045,body.chest.z-shoulderDz);
+  body.rightShoulder=vec(body.chest.x+shoulderDx,body.chest.y+.045,body.chest.z+shoulderDz);
+  return {bat:finished,body};
+}
+
 /** Bend a two-bone chain toward a stable pole without stretching. */
 export function solveJoint(start:Vec3,end:Vec3,upper:number,lower:number,pole:Vec3):Vec3 {
   const dx=end.x-start.x,dy=end.y-start.y,dz=end.z-start.z;

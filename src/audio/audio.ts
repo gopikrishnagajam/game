@@ -18,7 +18,7 @@ export class CricketAudio {
     const t=this.context.currentTime, osc=this.context.createOscillator(), env=this.context.createGain();
     osc.type=type; osc.frequency.setValueAtTime(freq,t);
     if(end)osc.frequency.exponentialRampToValueAtTime(end,t+duration);
-    env.gain.setValueAtTime(volume,t);env.gain.exponentialRampToValueAtTime(0.001,t+duration);
+    env.gain.setValueAtTime(0.001,t);env.gain.linearRampToValueAtTime(volume,t+0.002);env.gain.exponentialRampToValueAtTime(0.001,t+duration);
     osc.connect(env);env.connect(this.gain);osc.start(t);osc.stop(t+duration+0.01);
     osc.onended=()=>{osc.disconnect();env.disconnect();};
   }
@@ -33,8 +33,19 @@ export class CricketAudio {
     source.connect(filter);filter.connect(gain);gain.connect(this.gain);source.start();
     source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};
   }
-  contact(quality:Quality){this.noise(0.085,quality==='perfect'?1.0:0.6,quality==='perfect'?6000:2300);this.tone(quality==='perfect'?700:360,0.09,0.18,'triangle',170);}
-  bounce(){this.noise(0.045,0.30,900);}
+  contact(quality:Quality){
+    // A short crack, wooden body and high transient identify the sweet spot.
+    // Edges/mishits have a thinner, duller knock; the sound never predicts runs.
+    if(quality==='perfect') {
+      this.noise(.048,.88,6500);this.noise(.10,.13,1900);
+      this.tone(185,.105,.31,'triangle',92);this.tone(1150,.032,.10,'sine',650);
+    } else if(quality==='good') {
+      this.noise(.050,.60,4200);this.tone(165,.09,.23,'triangle',86);this.tone(820,.025,.055,'sine',520);
+    } else {
+      this.noise(.035,.34,2100);this.tone(125,.075,.15,'triangle',70);this.tone(1550,.025,.04,'sine',860);
+    }
+  }
+  bounce(){this.noise(0.038,0.22,1100);this.tone(95,.04,.07,'triangle',55);}
   wicket(){this.noise(0.18,1.0,4700);this.tone(330,0.2,0.20,'triangle',100);}
   boundary(){this.tone(660,0.15,0.15);setTimeout(()=>this.tone(880,0.22,0.12),110);}
   click(){this.tone(700,0.05,0.08,'sine',500);}
