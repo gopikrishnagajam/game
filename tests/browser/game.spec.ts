@@ -507,9 +507,9 @@ test('timing feedback distinguishes physical early/late contact from a perfectly
     const { CONFIG } = await import(configPath), { selectStroke } = await import(battingPath);
     const results = [];
     for (const fixture of [
-      { seed: 0, type: 'loft', direction: 'longOn', offset: -.13, ball: 0 },
-      { seed: 5, type: 'ground', direction: 'cover', offset: .075, ball: 0 },
-      { seed: 23, type: 'defend', direction: 'fineLeg', offset: 0, ball: 6 },
+      { seed: 0, type: 'loft', direction: 'point', offset: -.115, ball: 0 },
+      { seed: 2, type: 'ground', direction: 'longOn', offset: .065, ball: 0 },
+      { seed: 66, type: 'defend', direction: 'fineLeg', offset: 0, ball: 6 },
     ]) {
       api.start('blue', 'club');
       api.game.start('blue', 'club', fixture.seed);
@@ -538,6 +538,69 @@ test('timing feedback distinguishes physical early/late contact from a perfectly
   expect(Math.abs(results[2].timingError)).toBeLessThan(1 / 120);
   expect(results[2].note).toContain('direction or shot');
   await page.screenshot({ path: 'tests/artifacts/v03-geometric-miss.png' });
+});
+
+test('batting responds on the next frame and remains one continuous stroke across impact and recovery', async ({ page }) => {
+  await openDebug(page);
+  const initial = await page.evaluate(async () => {
+    const api = (window as any).__cricket;
+    const configPath='/src/core/config.ts',battingPath='/src/batting/batting.ts';
+    const { CONFIG }=await import(configPath),{ selectStroke }=await import(battingPath);
+    api.start('blue','beginner');api.game.start('blue','beginner',0);api.game.debug=false;
+    while(api.game.phase==='runup')api.game.advance(CONFIG.step);
+    const d=api.game.delivery,direction=d.contact.x<-.12?'cover':d.contact.x>.12?'longOn':'straight';
+    const inputAt=d.arrival-CONFIG.lead[selectStroke(d,'ground',direction)];
+    while(api.game.deliveryTime+1e-10<inputAt)api.game.advance(CONFIG.step);
+    api.scene.update(api.game.frame());api.ui.update();
+    return { direction, rotation:api.scene.batter.bat.quaternion.toArray() };
+  });
+  await page.keyboard.down('ArrowUp');
+  if(initial.direction==='cover')await page.keyboard.down('ArrowRight');
+  if(initial.direction==='longOn')await page.keyboard.down('ArrowLeft');
+  await page.keyboard.up('ArrowUp');await page.keyboard.up('ArrowRight');await page.keyboard.up('ArrowLeft');
+  await page.screenshot({path:'tests/artifacts/batting-ready.png'});
+  await page.keyboard.press('s');
+  const response=await page.evaluate(()=>{
+    const api=(window as any).__cricket;
+    const atInput=api.game.shot.committedAt;
+    api.game.advanceRealTime(1/60);api.scene.update(api.game.frame());api.ui.update();
+    return { rotation:api.scene.batter.bat.quaternion.toArray(),age:api.game.deliveryTime-atInput };
+  });
+  expect(response.age).toBeGreaterThan(0);
+  expect(response.age).toBeLessThanOrEqual(1/60);
+  expect(response.rotation).not.toEqual(initial.rotation);
+  await page.screenshot({path:'tests/artifacts/batting-downswing.png'});
+  const impact=await page.evaluate(()=>{
+    const api=(window as any).__cricket;
+    while(api.game.phase==='delivery')api.game.advance(1/120);
+    const frame=api.game.frame(),poses=[];
+    for(const phase of ['delivery','outgoing','feedback']){
+      api.scene.batter.updateBatter({...frame,phase,contactAge:0,outcome:{runs:0,quality:'perfect',contribution:50}});
+      const transforms:number[][]=[];
+      api.scene.batter.group.traverse((node:any)=>transforms.push([...node.position.toArray(),...node.quaternion.toArray(),...node.scale.toArray()]));
+      poses.push(transforms);
+    }
+    api.scene.update(frame);api.ui.update();
+    return { phase:api.game.phase,latency:(api.game.deliveryTime-api.game.shot.committedAt)/api.game.timeScale,contactAge:frame.contactAge,poses };
+  });
+  expect(impact.phase).toBe('outgoing');
+  expect(impact.latency).toBeLessThanOrEqual(.25);
+  expect(impact.contactAge).toBe(0);
+  expect(impact.poses[1]).toEqual(impact.poses[0]);
+  expect(impact.poses[2]).toEqual(impact.poses[1]);
+  await page.screenshot({path:'tests/artifacts/batting-impact.png'});
+  await page.evaluate(()=>{
+    const api=(window as any).__cricket;
+    for(let i=0;i<24;i++)api.game.advance(1/120);
+    api.scene.update(api.game.frame());api.ui.update();
+  });
+  await page.screenshot({path:'tests/artifacts/batting-follow-through.png'});
+  await page.evaluate(()=>{
+    const api=(window as any).__cricket;
+    for(let i=0;i<60;i++)api.game.advance(1/120);
+    api.scene.update(api.game.frame());api.ui.update();
+  });
+  await page.screenshot({path:'tests/artifacts/batting-recovery.png'});
 });
 
 test('all three difficulties complete real seeded chases in the browser simulation', async ({ page }) => {

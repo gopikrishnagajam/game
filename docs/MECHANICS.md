@@ -15,7 +15,8 @@ The original design authority is `instructions.md` (local, untracked). The v0.3 
 | `physics/ball.ts` | Shared live/predictive flight, bounce, turn and rolling integration |
 | `physics/collision.ts` | Moving pad capsules and swept wicket-envelope collision |
 | `batting/batting.ts` | Shot-family assistance, timing, compatibility, swept blade contact and outgoing velocity |
-| `animation/pose.ts` | Original authored bat/body motion, limb joint solving and matching pad geometry |
+| `animation/stroke.ts`, `animation/rigid.ts` | Continuous rigid swing, spherical orientation and stroke timing |
+| `animation/pose.ts` | Shared body/footwork motion, limb joint solving and matching pad geometry |
 | `confidence/confidence.ts` | Personal rolling history, confidence calculation and bounded quality/power/precision modifiers |
 | `fielding/fielding.ts` | Catching-zone eligibility, first landing, continuous interception and geometric runs |
 | `match/match.ts` | Batting roster, totals, personal records, replacement, strike changes and terminal results |
@@ -97,16 +98,20 @@ The v0.3 fixed thresholds, in simulation milliseconds, are:
 | Intent | Perfect | Good | Mistimed outer limit |
 |---|---:|---:|---:|
 | Defense | ±80 ms | ±160 ms | ±240 ms |
-| Grounded | ±65 ms | ±120 ms | ±190 ms |
+| Grounded | ±55 ms | ±120 ms | ±190 ms |
 | Lofted | ±50 ms | ±100 ms | ±165 ms |
 
-These simulation thresholds do not vary with confidence, difficulty or score. Their real-time duration is the configured value divided by difficulty speed: a 65 ms grounded perfect window gives about 118 ms on Beginner, 93 ms on Club and 76 ms on Pro on either side of ideal input. Precision still affects raw execution continuously. Physical overlap remains necessary even when nominal timing is perfect.
+These simulation thresholds do not vary with confidence, difficulty or score. Their real-time duration is the configured value divided by difficulty speed: a 55 ms grounded perfect window gives 100 ms on Beginner, 79 ms on Club and 65 ms on Pro on either side of ideal input. The grounded perfect band was calibrated from 65 to 55 ms against actual contact coverage after shortening the downswing; good/outer bands are retained. Precision still affects raw execution continuously. Physical overlap remains necessary even when nominal timing is perfect.
 
 On real contact, the HUD reports PERFECT, EARLY or LATE using execution quality and signed timing error; early contact advises a later swing and late contact an earlier swing. An actual geometric miss always reports MISSED, even if intended timing was perfect. No-input balls explain that no shot was played; successful ducks report WELL LEFT. Feedback ages in simulation time so pause does not silently dismiss it.
 
 `sampleBatPose` returns the blade heel, toe, and face orientation at a given animation time. Both the renderer and collision code consume this pose. `sweptBatContact` checks the ball sphere against the moving oriented blade through subdivisions of the simulation step, then refines the first overlap. It returns an actual ball-center position and offset along the blade; the outgoing ball starts there. The ball is never moved to a predicted target to manufacture a hit.
 
-The stronger v0.3 finish uses `sampleContactFollowThrough` only after a verified hit and more than 0.12 simulation seconds past nominal impact. It preserves the shared contact region exactly, leaves miss animations and pad geometry unchanged, maintains blade length/reachable hands, and blends back into recovery. Lofted finishes are higher than grounded drives. Run-up backlift settles before release; post-impact head tracking uses the real ball. Synthesized sweet-spot sounds have a sharper transient and wooden body, with thinner sounds for weaker contact.
+The batting refinement uses one continuous authored stroke in `animation/stroke.ts`, sampled by the renderer and collider alike. The ready stance already includes a modest backlift. Keypress begins the downswing rather than another preparation clip; lead times are 100–135 simulation milliseconds instead of 180–280. On Beginner, nominal impact is 182–245 real milliseconds after the press; a drive can be timed around the visible bounce rather than far before it.
+
+Quaternion cubic arcs share their tangent at impact. A hand-pivot representation keeps the blade exactly 0.69 m long, including recovery; glove orientation follows the handle. The follow-through is part of the stroke for hits and misses, with no delayed success layer or phase-triggered bat reset. Defenses are compact, horizontal cuts/pulls stay distinct, and lofted finishes are higher than grounded drives. After a short finish, a 0.38 simulation-second recovery avoids a second fast swing back to guard.
+
+Feet lift during the step and plant before impact. Torso lean keeps both hands reachable without stretching arms or changing bat targets; pads use those same moving legs. The duck has a smooth crouch/hold/recover envelope. Post-impact head tracking ramps from elapsed **actual** collision time (`RenderFrame.contactAge`) and continues through feedback, preventing a pose jump on early or late contact. Synthesized impact sounds still fire from actual physical contact.
 
 Unsuitable direction choices change the target alignment and shot quality. Reach is bounded; a horizontal cut/pull blade stays at a plausible grip height so a low yorker can pass beneath an unsuitable stroke. Incoming speed, bat speed, contact offset, shot class, raw quality and confidence determine outgoing speed, deviation and launch angle. A bounded contact-energy curve makes very weak contacts trickle rather than retaining full swing power. Grounded S strokes never become catchable. A D attempt is classified as a genuine aerial stroke only when its raw contact quality passes the implementation's aerial threshold; weak failed lofts follow ground rules. A can produce a small physical deflection or a timed duck rather than a power shot.
 
@@ -181,7 +186,7 @@ For a continuing innings, replace a dismissed striker first, then swap strike fo
 
 ## Assets, configuration and limitations
 
-The runtime builds original articulated geometry from `rendering/player.ts` and samples the original curves in `animation/pose.ts`. A portable GLB with baked clips is supplied in `public/assets`; its manifest and the export utility record how to rebuild it. Runtime simulation uses the source poses directly so exported clip sampling cannot introduce a second contact clock. Asset provenance is recorded in [`public/assets/LICENSES.md`](../public/assets/LICENSES.md).
+The runtime builds original articulated geometry from `rendering/player.ts` and samples the original curves in `animation/stroke.ts` and `animation/pose.ts`. The portable GLB in `public/assets` samples strokes at 120 Hz and includes exact impact and recovery timestamps; its manifest records the sources and rebuild command. Runtime simulation uses source poses directly so exported clip sampling cannot introduce a second contact clock. Asset provenance is recorded in [`public/assets/LICENSES.md`](../public/assets/LICENSES.md).
 
 Use `core/config.ts` for match invariants and major numerical tuning: gameplay speed, timing and leads, targets, confidence cap, delivery speeds/lengths/movement, bounce response, friction, field positions/radii, marker timing and base camera. Use `rendering/presentation.ts` for cosmetic visibility and camera-follow values. Geometry dimensions and authored movement curves are also defined in their source modules. Match, scoring, confidence and collision rules retain their original behavior.
 

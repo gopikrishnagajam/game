@@ -59,14 +59,15 @@ describe('physical seeded gameplay scenarios', () => {
   });
 
   it('lets unsuitable defense miss a real off-break and hit stumps without an automatic direction rule', () => {
-    const safe = play(23, 'defend', 'straight', 0, 6);
-    const failed = play(23, 'defend', 'fineLeg', 0, 6);
+    const safe = play(66, 'defend', 'straight', 0, 6);
+    const failed = play(66, 'defend', 'fineLeg', 0, 6);
     expect(failed.delivery).toEqual(safe.delivery);
     expect(failed.contact).toBeNull();
     expect(failed.game.shot!.suitability).toBeLessThan(safe.game.shot!.suitability);
     expect(failed.outcome).toMatchObject({ runs: 0, wicket: 'bowled', quality: 'miss', contribution: -50 });
     const position = failed.game.ball!.position;
-    expect(position.z).toBeCloseTo(CONFIG.stump.z + CONFIG.ballRadius);
+    // A turning ball can enter the wicket envelope through a side edge.
+    expect(Math.abs(position.z-CONFIG.stump.z)).toBeLessThanOrEqual(CONFIG.ballRadius+1e-9);
     expect(Math.abs(position.x)).toBeLessThanOrEqual(CONFIG.stump.halfWidth + CONFIG.ballRadius);
     expect(position.y).toBeLessThan(CONFIG.stump.height + CONFIG.ballRadius);
     expect(failed.game.match!.batters[failed.faced].out).toBe(true);
@@ -80,11 +81,11 @@ describe('physical seeded gameplay scenarios', () => {
   });
 
   it('catches a deliberately mistimed physical loft at its first landing inside a fixed catch circle', () => {
-    const scenario = play(0, 'loft', 'longOn', -CONFIG.timing.loft.good - 0.03);
+    const scenario = play(6, 'loft', 'cover', CONFIG.timing.loft.good + 0.035);
     expect(scenario.contact).not.toBeNull();
     expect(scenario.contact!.aerial).toBe(true);
     expect(scenario.outcome.quality).toBe('mistimed');
-    expect(scenario.outcome.timingError).toBeLessThan(-CONFIG.timing.loft.good);
+    expect(scenario.outcome.timingError).toBeGreaterThan(CONFIG.timing.loft.good);
     expect(landsInCatchCircle(scenario)).toBe(true);
     expect(Math.hypot(scenario.game.ball!.position.x, scenario.game.ball!.position.z)).toBeLessThan(CONFIG.boundary);
     expect(scenario.game.ball!.position.y).toBe(CONFIG.ballRadius);
@@ -98,7 +99,7 @@ describe('physical seeded gameplay scenarios', () => {
   });
 
   it('drops an eligible seeded loft and awards its actual interior first-landing four', () => {
-    const scenario = play(74, 'loft', 'straight', -CONFIG.timing.loft.good - 0.01);
+    const scenario = play(256, 'loft', 'cover', CONFIG.timing.loft.good + 0.015);
     expect(scenario.contact!.aerial).toBe(true);
     expect(scenario.outcome.quality).toBe('mistimed');
     expect(landsInCatchCircle(scenario)).toBe(true);
@@ -115,7 +116,7 @@ describe('physical seeded gameplay scenarios', () => {
   });
 
   it('classifies a failed D attempt by actual weak contact and resolves ground movement without a catch', () => {
-    const scenario = play(0, 'loft', 'longOn', -CONFIG.timing.loft.good - 0.04);
+    const scenario = play(0, 'loft', 'point', -CONFIG.timing.loft.good - 0.015);
     expect(scenario.game.shot!.type).toBe('loft');
     expect(scenario.contact).not.toBeNull();
     expect(scenario.contact!.raw as number).toBeLessThan(CONFIG.batting.launch.aerialQualityThreshold);

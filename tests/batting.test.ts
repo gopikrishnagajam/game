@@ -101,7 +101,9 @@ describe('fixed timing windows', () => {
     expect(shot.contactAt).toBeCloseTo(d.arrival);
     expect(shot.timingError).toBeCloseTo(0);
     expect(shot.quality).toBe('perfect');
-    expect(createShot(d, 'ground', 'straight', d.arrival).quality).toBe('miss');
+    const atArrival=createShot(d,'ground','straight',d.arrival);
+    expect(atArrival.timingError).toBeCloseTo(CONFIG.lead.straightDrive);
+    expect(atArrival.quality).not.toBe('perfect');
   });
 
   it('does not mutate the incoming delivery while choosing target geometry', () => {

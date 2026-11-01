@@ -22,6 +22,7 @@ const view=new DataView(binary);const jsonSize=view.getUint32(12,true);const glt
 await writeFile(join(projectRoot,'public/assets/fun-cricket-batter.asset.json'),JSON.stringify({
   name:'Fun Cricket original articulated batter',bytes:binary.byteLength,format:'GLB 2.0',
   geometrySource:'src/rendering/player.ts',animationSource:'src/animation/pose.ts',
+  animationSources:['src/animation/pose.ts','src/animation/stroke.ts','src/animation/rigid.ts'],
   exporter:'src/rendering/export.ts',rebuild:'node src/rendering/build-assets.mjs',
   license:'Original project asset; no third-party character, animation, or likeness.',
   runtime:'The game builds this original geometry from source and samples the original animation curves for exact physical contact. This GLB is a portable baked export, not a separate runtime simulation.',

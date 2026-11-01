@@ -33,14 +33,18 @@ export const CONFIG = {
   },
   timing: {
     defend: { perfect: 0.080, good: 0.160, outer: 0.240 },
-    ground: { perfect: 0.065, good: 0.120, outer: 0.190 },
+    ground: { perfect: 0.055, good: 0.120, outer: 0.190 },
     loft: { perfect: 0.050, good: 0.100, outer: 0.165 },
   },
   lead: {
-    forwardDefense: 0.23, backDefense: 0.20, duck: 0.18,
-    straightDrive: 0.24, coverDrive: 0.25, onDrive: 0.23,
-    backPunch: 0.21, cut: 0.20, pull: 0.22,
-    loftStraight: 0.28, loftDrive: 0.28, lateCut: 0.21,
+    forwardDefense: 0.11, backDefense: 0.105, duck: 0.10,
+    straightDrive: 0.12, coverDrive: 0.125, onDrive: 0.12,
+    backPunch: 0.11, cut: 0.105, pull: 0.115,
+    loftStraight: 0.135, loftDrive: 0.135, lateCut: 0.105,
+  },
+  strokeMotion: {
+    driveFollow: 0.20, loftFollow: 0.24, defenseFollow: 0.12,
+    finishHold: 0.025, recovery: 0.38, duckDuration: 0.55,
   },
   difficulty: {
     beginner: { target: 16, timeScale: 0.55, weights: [0.80, 0.15, 0.05], movement: 0.55, marker: 0.18, accuracy: 0.75 },

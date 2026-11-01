@@ -15,6 +15,8 @@ Open the printed Local URL, normally **http://127.0.0.1:4173/**. Start with Begi
 
 v0.3 gives Beginner **55%**, Club **70%** and Pro **85%** gameplay speed. A larger display ball, contrast outline, short historical trail and bounce pulse help you follow the delivery. Early/perfect/late/missed feedback explains execution; successful shots add a fuller follow-through, impact effects, richer sound and gentle outgoing-ball camera tracking. Bowling trajectories, collision radius, scoring and match rules remain physical and unchanged.
 
+The batting refinement replaces the delayed backlift and separate hit finish with one continuous rigid stroke. The batter prepares before input; a press starts the downswing immediately. Nominal contact takes 0.10–0.135 simulation seconds (about 182–245 ms on Beginner), with lifted/planted footwork, hands attached to the handle and a measured recovery. The grounded perfect band is calibrated to ±55 simulation milliseconds so its label remains consistent with physical contact coverage.
+
 ## Run locally
 
 Install Node.js 22.12 or newer (Node 22.14 was used during development), then run these commands in this folder:
@@ -71,7 +73,7 @@ npm run preview
 
 `src/core/game.ts` owns the match lifecycle and fixed 120 Hz simulation. `advanceRealTime()` applies difficulty speed once before the fixed-step accumulator; both animation frames and timestamped keyboard inputs use it. `advance()` accepts simulation seconds for deterministic scenarios. Pure systems implement bowling, ball physics, batting, confidence, collision, fielding and scoring. The immutable match reducer updates the faced batter before applying replacements and strike rotation. The HUD reads this same authoritative state.
 
-The original articulated player is authored in `src/rendering/player.ts`; `src/animation/pose.ts` samples the stroke, footwork and pad geometry. Rendering and physics share the bat pose through impact; a cosmetic finish starts after verified contact and the protected impact interval. A seeded PRNG controls delivery generation, bounded shot deviation and geometrically eligible catch decisions. No independent roll invents runs.
+The original articulated player is authored in `src/rendering/player.ts`. `src/animation/stroke.ts` authors the continuous swing; `rigid.ts` preserves bat length and spherical orientation; `pose.ts` supplies body, footwork and matching pad geometry. Rendering and physics sample the same motion through impact, follow-through and recovery. A seeded PRNG controls delivery generation, bounded shot deviation and geometrically eligible catch decisions. No independent roll invents runs.
 
 Primary gameplay values live in `src/core/config.ts`; rendering-only visibility and follow-camera settings live in `src/rendering/presentation.ts`. The v0.3 request updates the original specification's timing and post-contact camera behavior while retaining core rules. See [mechanics documentation](docs/MECHANICS.md) and the [acceptance report](docs/ACCEPTANCE.md) for behavior and validation limits.
 

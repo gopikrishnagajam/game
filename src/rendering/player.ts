@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BatPose, RenderFrame, Team, Vec3 } from '../core/types';
 import { CONFIG } from '../core/config';
 import { clamp, smooth, vec } from '../core/math';
-import { ARM_LOWER, ARM_UPPER, LEG_LENGTH, sampleContactFollowThrough, sampleGripPoints, solveJoint } from '../animation/pose';
+import { ARM_LOWER, ARM_UPPER, LEG_LENGTH, sampleBatterPose, sampleGripPoints, solveJoint } from '../animation/pose';
 
 const Y=new THREE.Vector3(0,1,0);
 const vector=(p:Vec3)=>new THREE.Vector3(p.x,p.y,p.z);
@@ -121,7 +121,7 @@ export class CricketPlayer {
     const shot=frame.shot;
     const age=frame.shotAge;
     const contacted=!!shot&&shot.stroke!=='duck'&&(frame.phase==='outgoing'||(frame.phase==='feedback'&&!!frame.outcome&&frame.outcome.quality!=='miss'));
-    const pose=sampleContactFollowThrough(shot,age,frame.delivery,frame.time,contacted);
+    const pose=sampleBatterPose(shot,age,frame.delivery,frame.time);
     const body=pose.body;
     let bat=pose.bat;
     if(frame.phase==='runup') {
@@ -139,7 +139,7 @@ export class CricketPlayer {
     const leftElbow=solveJoint(body.leftShoulder,gripA,ARM_UPPER,ARM_LOWER,vec(-1,-0.4,-0.4));
     const rightElbow=solveJoint(body.rightShoulder,gripB,ARM_UPPER,ARM_LOWER,vec(1,-0.5,-0.5));
     this.poseBody(body.hip,body.chest,body.head,body.leftShoulder,body.rightShoulder,body.leftHip,body.rightHip,body.leftFoot,body.rightFoot,leftElbow,rightElbow,gripA,gripB,body.twist);
-    const watch=contacted&&frame.ball?smooth((age-(shot?CONFIG.lead[shot.stroke]:0))/.24):0;
+    const watch=contacted&&frame.ball?smooth(frame.contactAge/.16):0;
     const ball=frame.ball?.position;
     const yaw=ball?clamp(Math.atan2(ball.x-body.head.x,ball.z-body.head.z),-.65,.65):-.15;
     const pitch=ball?clamp(-Math.atan2(ball.y-body.head.y,Math.hypot(ball.x-body.head.x,ball.z-body.head.z)),-.30,.35):.15;
@@ -159,6 +159,7 @@ export class CricketPlayer {
       const end=vec(s.x+(e.x-s.x)*0.65,s.y+(e.y-s.y)*0.65,s.z+(e.z-s.z)*0.65);this.setLimb(this.sleeves[i].mesh,s,end);
     }
     this.gloves[0].position.copy(vector(leftHand));this.gloves[1].position.copy(vector(rightHand));
+    if(this.isBatter)for(const glove of this.gloves)glove.quaternion.copy(this.bat.quaternion);
     const leftKnee=solveJoint(leftHip,leftFoot,LEG_LENGTH,LEG_LENGTH,vec(0,0,1));
     const rightKnee=solveJoint(rightHip,rightFoot,LEG_LENGTH,LEG_LENGTH,vec(0,0,1));
     this.link(this.legs[0],leftHip,leftKnee);this.link(this.legs[1],rightHip,rightKnee);

@@ -228,6 +228,7 @@ export class CricketGame {
     }
     return {time:this.time,phase:this.phase,phaseTime:this.phaseTime,match:this.match,delivery:this.delivery,
       ball:this.ball,shot:this.shot,shotAge:this.shot?this.deliveryTime-this.shot.committedAt:0,
+      contactAge:this.hit&&this.contactDebug?this.deliveryTime-(this.contactDebug.time as number):0,
       marker,outcome:this.outcome,milestone:this.milestone,debug:this.debug};
   }
 }

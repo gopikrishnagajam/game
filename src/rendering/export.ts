@@ -3,6 +3,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { CricketPlayer } from './player';
 import type { RenderFrame, Shot, Stroke } from '../core/types';
 import { CONFIG } from '../core/config';
+import { strokeDuration } from '../animation/pose';
 
 /** Developer asset authoring utility. Bakes the original articulated rig and curves
  * into a portable GLB; gameplay continues to use the very same curves for collision. */
@@ -11,7 +12,7 @@ export async function exportOriginalCricketPlayer():Promise<ArrayBuffer> {
   const root=player.group;
   root.name='FunCricket_Original_Articulated_Batter';
   const nodes:THREE.Object3D[]=[];root.traverse(node=>{if(node!==root){node.name=`BatterPart_${nodes.length.toString().padStart(3,'0')}`;nodes.push(node);}});
-  const frame:RenderFrame={time:0,phase:'delivery',phaseTime:0,match:null,delivery:null,ball:null,shot:null,shotAge:0,marker:0,outcome:null,milestone:false,debug:false};
+  const frame:RenderFrame={time:0,phase:'delivery',phaseTime:0,match:null,delivery:null,ball:null,shot:null,shotAge:0,contactAge:0,marker:0,outcome:null,milestone:false,debug:false};
   const families:({name:string;stroke?:Stroke;type?:Shot['type'];angle?:number;quality?:Shot['quality'];raw?:number})[]=[
     {name:'Ready_Stance'},
     {name:'Forward_Defense',stroke:'forwardDefense',type:'defend'},
@@ -32,19 +33,21 @@ export async function exportOriginalCricketPlayer():Promise<ArrayBuffer> {
   ];
   const clips:THREE.AnimationClip[]=[];
   for(const family of families) {
-    const duration=family.stroke?CONFIG.lead[family.stroke]+.95:1.5;
-    const count=37;
     const times:number[]=[];
     const values=nodes.map(()=>({p:[] as number[],q:[] as number[],s:[] as number[]}));
     let shot:Shot|null=null;
     if(family.stroke)shot={type:family.type??'ground',direction:'straight',stroke:family.stroke,committedAt:0,contactAt:CONFIG.lead[family.stroke],target:{x:0,y:family.stroke==='cut'||family.stroke==='pull'?1.1:.62,z:CONFIG.contactZ},angle:family.angle??0,suitability:1,timingError:family.quality==='miss'?.2:0,quality:family.quality??'perfect',raw:family.raw??1,contribution:50};
-    for(let i=0;i<count;i++) {
-      const t=i/(count-1)*duration;times.push(t);
+    const duration=shot?strokeDuration(shot)+.05:1.5;
+    // Sample the fast downswing at simulation frequency and include its exact
+    // impact timestamp instead of letting uniform clip keys miss contact.
+    const keyTimes=shot?[...new Set([0,...Array.from({length:Math.ceil(duration/CONFIG.step)},(_,i)=>Math.min(duration,(i+1)*CONFIG.step)),CONFIG.lead[shot.stroke],strokeDuration(shot),duration])].sort((a,b)=>a-b):Array.from({length:37},(_,i)=>i/36*duration);
+    for(const t of keyTimes) {
+      times.push(t);
       frame.time=t;frame.phaseTime=t;frame.shotAge=t;frame.shot=shot;
       frame.milestone=family.name==='Milestone_Bat_Raise';
-      // Bake the same verified-contact finish as the renderer. A missed-swing
-      // clip retains its ordinary recovery and never receives a hit flourish.
+      // One shared stroke continues through contact and recovery on every clip.
       frame.phase=frame.milestone?'feedback':shot&&shot.quality!=='miss'&&t>=CONFIG.lead[shot.stroke]?'outgoing':'delivery';
+      frame.contactAge=shot?Math.max(0,t-CONFIG.lead[shot.stroke]):0;
       player.updateBatter(frame);
       nodes.forEach((node,index)=>{const v=values[index];v.p.push(node.position.x,node.position.y,node.position.z);v.q.push(node.quaternion.x,node.quaternion.y,node.quaternion.z,node.quaternion.w);v.s.push(node.scale.x,node.scale.y,node.scale.z);});
     }

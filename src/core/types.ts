@@ -41,5 +41,6 @@ export interface RenderFrame {
   time: number; phase: Phase; phaseTime: number; match: Match | null;
   delivery: Delivery | null; ball: Ball | null; shot: Shot | null;
   shotAge: number; marker: number; outcome: Outcome | null;
+  contactAge: number;
   milestone: boolean; debug: boolean;
 }
