@@ -1,6 +1,6 @@
 # First-playable acceptance report
 
-Release: Fun Cricket v0.1. This is a working implementation of the full Quick Chase loop. This report separates implemented behavior and automated evidence from subjective human playtesting.
+Release: Fun Cricket v0.1, first edition prepared for user review on November 1, 2026. The full Quick Chase loop is implemented and the checks below pass. This report separates automated evidence from subjective human playtesting. Further development is held for the user's review.
 
 ## Implemented scope
 
@@ -25,7 +25,7 @@ npm run test:browser
 npm run build
 ```
 
-The final run results and production smoke evidence are recorded below after the release checks finish. Browser screenshots are stored in `tests/artifacts/`, with additional animation screenshots in `artifacts/`.
+Final check results and production smoke evidence are recorded below. JSON reports and browser screenshots are stored in `tests/artifacts/`, with additional animation screenshots in `artifacts/`.
 
 The browser suite uses Chromium through Playwright with software WebGL at 1440 × 900. It captures page/console errors and exercises actual application controls. Test scenarios use the development API only to drive deterministic simulation time and seeded inputs; physical outcomes are never replaced by mocked scores. The production smoke blocks non-local network requests and checks that the debug API and overlays remain unavailable.
 
@@ -64,4 +64,32 @@ The 60 FPS hardware target has not been certified on a named consumer desktop GP
 
 ## Final check results
 
-Pending final source-stable run. Do not treat this line as a claim that every subjective acceptance criterion has passed.
+Verified on November 1, 2026, using Windows, Node.js 22.14.0 and Playwright Chromium. Browser checks use a 1440 × 900 viewport and software WebGL.
+
+| Check | Result | Evidence |
+|---|---|---|
+| Unit and integration suite | 132 passed across 12 test files; zero failures | `tests/artifacts/unit-results.json` |
+| TypeScript | `npm run check` passed; final production build also runs `tsc --noEmit` | Build's typecheck plugin in `vite.config.ts` |
+| Browser suite | 12 passed; the separate production smoke is intentionally skipped in this development run | `tests/artifacts/browser-results.json`, `browser-run.log` |
+| Production smoke | 1 passed against the final `dist/` build at `http://127.0.0.1:4173/` | `tests/artifacts/production-results.json`, `production.png`, `production-run.log` |
+| Production build | `npm run build` passed; complete static output in `dist/` | Main JS 69.71 kB and Three.js chunk 481.97 kB, before gzip |
+| Original character export | Loaded successfully through Three.js `GLTFLoader.parseAsync`; all 16 animation clips present | `public/assets/fun-cricket-batter.glb` and asset manifest |
+
+The browser suite verifies real physical victories and defeats, both teams, all three difficulty targets, shot locking and repeat suppression, focus-loss pause, input timestamps between render frames, fixed camera, live ball tracking and clean replay. The production smoke verifies team setup, pause, return to menu, zero external requests, and absence of developer hooks. Neither browser run reported page or console errors.
+
+The final interface fixes restore Home navigation from match results, Space activation of focused buttons, isolation of gameplay keys inside How to Play, prior pause state after closing help, and keyboard focus through screen and pause transitions. Three browser regressions cover the repaired behaviors. The match container's programmatic focus has no decorative outline; button focus remains visible.
+
+An additional exploratory seeded audit ran 1,440 complete physical matches: 120 seeds across three difficulties and four strategies (no input, ideal defense, ground and loft). Every match completed without stalls, invalid positions, excess balls/wickets or roster errors. This audit supplements the repeatable checked-in test suite.
+
+To repeat the production smoke, keep `npm run preview` running and use a second PowerShell terminal:
+
+```powershell
+$env:CRICKET_PRODUCTION_URL = 'http://127.0.0.1:4173'
+node node_modules/@playwright/test/cli.js test --grep 'production build'
+```
+
+## User review
+
+Open `http://127.0.0.1:4173/` while the production preview is running. If it has stopped, run `npm run preview` in the project folder; rebuild with `npm run build` after source changes.
+
+Start a Beginner chase, then try Club and Pro. Check how early to press A/S/D, ball readability, stroke feedback, pause/help behavior, and One More Chase. Arrows aim, A defends/ducks, S plays along the ground, D attempts a loft, and Escape pauses. Human batting-feel acceptance and hardware performance certification remain pending this review; the automated results do not stand in for them.

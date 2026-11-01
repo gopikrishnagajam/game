@@ -2,6 +2,17 @@
 
 A desktop browser cricket batting game: twelve balls, three wickets, one target. Built with TypeScript, Three.js and Vite. Everything runs locally; play needs no backend or external asset requests.
 
+## First-edition review
+
+The v0.1 implementation is ready for review. To play the production edition, run:
+
+```powershell
+npm run build
+npm run preview
+```
+
+Open the printed Local URL, normally **http://127.0.0.1:4173/**. Start with Beginner, then try Club or Pro. Aim with the arrows and press A, S or D slightly before the ball arrives. Check timing, ball visibility, scoring, pause/resume and One More Chase. The [acceptance report](docs/ACCEPTANCE.md) records automated evidence and the batting-feel and hardware checks awaiting human review. Further development is held for that review.
+
 ## Run locally
 
 Install Node.js 22.12 or newer (Node 22.14 was used during development), then run these commands in this folder:

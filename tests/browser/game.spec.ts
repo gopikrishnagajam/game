@@ -63,6 +63,48 @@ test('Team Yellow and Pro setup produce the selected live match and support paus
   await expect(page.locator('#pause-overlay')).toBeVisible();
 });
 
+test('menu and help buttons support Space activation and return keyboard focus', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#play').focus();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('region', { name: 'Match setup' })).toBeVisible();
+  await page.locator('#help').focus();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.locator('#help-got-it').focus();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(page.locator('#help')).toBeFocused();
+});
+
+test('help isolates gameplay shortcuts and preserves the previous pause state', async ({ page }) => {
+  await openDebug(page);
+  await page.evaluate(() => {
+    const api = (window as any).__cricket;
+    api.start('blue', 'club');
+    api.game.advance(1);
+    api.ui.update();
+  });
+  await page.locator('#help').click();
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('s');
+  const duringHelp = await page.evaluate(() => {
+    const api = (window as any).__cricket;
+    return { paused: api.game.paused, direction: api.input.direction, inputs: api.game.inputLog.length };
+  });
+  expect(duringHelp).toEqual({ paused: true, direction: 'straight', inputs: 0 });
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#help-dialog')).toBeHidden();
+  expect(await page.evaluate(() => (window as any).__cricket.game.paused)).toBe(false);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#pause-overlay')).toBeVisible();
+  await page.locator('#help').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#help-dialog')).toBeHidden();
+  await expect(page.locator('#pause-overlay')).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__cricket.game.paused)).toBe(true);
+});
+
 test('arrow selection and S keyboard input lock one physical shot and suppress key repeats', async ({ page }) => {
   await openDebug(page);
   await page.evaluate(() => {
@@ -224,6 +266,21 @@ test('real no-input match reaches twelve balls and renders defeat and a return t
   await page.locator('#result-menu').click();
   await expect(page.locator('#menu-panel')).toBeVisible();
   await expect(page.locator('#result-panel')).toBeHidden();
+});
+
+test('Home returns from a completed chase to the main menu', async ({ page }) => {
+  await openDebug(page);
+  await page.evaluate(() => {
+    const api = (window as any).__cricket;
+    api.game.start('blue', 'beginner', 0);
+    for (let tick = 0; tick < 120 * 200 && api.game.phase !== 'complete'; tick++) api.game.advance(1 / 120);
+    api.ui.update();
+  });
+  await expect(page.locator('#result-panel')).toBeVisible();
+  await page.getByRole('button', { name: 'Fun Cricket home' }).click();
+  await expect(page.locator('#menu-panel')).toBeVisible();
+  await expect(page.locator('#result-panel')).toBeHidden();
+  expect(await page.evaluate(() => (window as any).__cricket.game.match)).toBeNull();
 });
 
 test('live ball tracker follows an actual off-screen loft while the batting camera stays fixed', async ({ page }) => {

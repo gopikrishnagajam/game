@@ -25,7 +25,11 @@ export class InputManager {
     window.addEventListener('blur', this.clear);
   }
   private down = (event: KeyboardEvent) => {
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    // Native dialogs own their keyboard interaction, including Escape and Space.
+    // Let focused controls keep their standard activation behavior as well.
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (event.defaultPrevented || document.querySelector('dialog[open]') || target?.isContentEditable || target?.closest('input, textarea, select')) return;
+    if (event.code === 'Space' && target?.closest('button, a[href], [role="button"]')) return;
     if (event.code.startsWith('Arrow')) {
       event.preventDefault();
       this.held.add(event.code);

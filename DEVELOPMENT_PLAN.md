@@ -1,8 +1,8 @@
 # Fun Cricket v0.1 development plan
 
-Status: implementation in progress. See `docs/ACCEPTANCE.md` for verified release status.
+Status: v0.1 implementation complete and prepared for user review. See `docs/ACCEPTANCE.md` for verification evidence and the remaining human playtest checks.
 
-Source of authority: `instructions.md`, master specification v0.1. This plan preserves its locked behavior; numerical tuning and technical choices below are implementation decisions. The workspace currently contains only the specification.
+Source of authority: `instructions.md`, master specification v0.1. This plan preserves its locked behavior; numerical tuning and technical choices below are implementation decisions. The milestone descriptions below record the implementation plan followed for the first edition.
 
 ## 1. Release scope
 
@@ -135,4 +135,4 @@ Tune configurable pace, movement, lead times, launch, friction, marker visibilit
 - Original/properly licensed model, animation, and audio manifest with attribution where required.
 - Completed acceptance report with test/playtest evidence and candid remaining limitations.
 
-Implementation starts with milestone 1. Completion means all eight milestones and the release acceptance checklist pass; an attractive scene or isolated batting demo is insufficient.
+Milestones 1–8 are implemented, including the complete Quick Chase loop. Automated verification and remaining human acceptance checks are recorded in `docs/ACCEPTANCE.md`. This first edition is held for user review before further development; batting feel and hardware performance still require human sign-off.

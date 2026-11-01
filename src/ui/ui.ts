@@ -23,6 +23,9 @@ export class GameUI {
   private quality='';
   private lastMatchBalls='';
   private textCache=new Map<string,string>();
+  private lastScreen='';
+  private wasPaused=false;
+  private focusBeforePause:HTMLElement|null=null;
 
   constructor(private root:HTMLElement, private game:CricketGame, private handlers:{
     start:(team:Team,difficulty:Difficulty)=>void; sound:()=>boolean; pause:()=>void;
@@ -53,7 +56,7 @@ export class GameUI {
         <p class="setup-note" id="setup-note">Balanced bowling. Genuine variation. Find your gaps.</p>
         <button class="primary-button" id="start">CHASE <span id="setup-target">24</span> RUNS <span>→</span></button>
       </section>
-      <div class="match-ui" id="match-ui" hidden>
+      <div class="match-ui" id="match-ui" tabindex="-1" hidden>
         <section class="scoreboard" aria-label="Live scoreboard"><div class="score-main"><span class="team-swatch" id="team-swatch"></span><div><span class="score-label" id="score-team">TEAM BLUE</span><div class="score-number"><span id="score">0</span><span class="score-separator">/</span><span id="wickets">0</span></div></div><div class="overs"><b id="overs">0.0</b><span>OVERS / 2</span></div></div><div class="chase-stat"><span>TARGET</span><b id="target">24</b></div><div class="chase-equation"><b><span id="needed">24</span> <small>NEEDED</small></b><span>FROM <strong id="remaining">12</strong> BALLS</span></div><button class="pause-button" id="pause" aria-label="Pause match">Ⅱ</button></section>
         <div class="over-line"><div><span class="live-dot"></span><span id="bowler-label">PACE ATTACK</span><span id="bowler-speed"></span></div><div class="ball-history" id="history" aria-label="Current over outcomes"></div></div>
         <div class="delivery-status" id="delivery-status" aria-live="polite">GET READY</div>
@@ -63,7 +66,7 @@ export class GameUI {
         <aside class="tracker" id="tracker" hidden><div><span class="live-dot"></span> BALL TRACKER <small>LIVE</small></div><canvas width="200" height="200" id="tracker-canvas" aria-label="Live top-down ball tracker"></canvas></aside>
       </div>
       <section class="result-panel card" id="result-panel" hidden aria-label="Match result"><div class="eyebrow" id="result-eyebrow">CHASE COMPLETE</div><h2 id="result-title">VICTORY.</h2><p id="result-subtitle"></p><div class="result-score"><strong id="final-score"></strong><div><span id="final-overs"></span><small id="final-target"></small></div></div><div class="scorecard-head"><span>BATTING CARD</span><span>RUNS <i>/</i> BALLS</span></div><div id="scorecard"></div><button class="primary-button" id="play-again">ONE MORE CHASE <span>↗</span></button><button class="secondary-button" id="result-menu">RETURN TO MENU</button></section>
-      <div class="pause-overlay" id="pause-overlay" hidden><div class="card pause-card"><div class="eyebrow">TAKE A BREATHER</div><h2>Innings paused.</h2><p>Your next ball can wait.</p><button class="primary-button" id="resume">BACK TO THE CREASE <span>→</span></button><button class="secondary-button" id="pause-menu">END MATCH & RETURN</button></div></div>
+      <div class="pause-overlay" id="pause-overlay" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden><div class="card pause-card"><div class="eyebrow">TAKE A BREATHER</div><h2 id="pause-title">Innings paused.</h2><p>Your next ball can wait.</p><button class="primary-button" id="resume">BACK TO THE CREASE <span>→</span></button><button class="secondary-button" id="pause-menu">END MATCH & RETURN</button></div></div>
       <dialog id="help-dialog"><button class="dialog-close" id="close-help" aria-label="Close instructions">×</button><div class="eyebrow">YOUR TIME AT THE CREASE</div><h2>Pick. Time. Chase.</h2><div class="help-step"><b>01</b><div><h3>Find a gap</h3><p>Use the arrow keys to choose a direction. Combine two arrows for a diagonal. Your selection stays until you change it.</p></div></div><div class="help-step"><b>02</b><div><h3>Read the ball</h3><p>Watch the bowler and the subtle pitch marker. Pace comes first; spin takes the second over.</p></div></div><div class="help-step"><b>03</b><div><h3>Time your stroke</h3><p>${key('A')} Defend or duck. ${key('S')} Play along the ground. ${key('D')} Go aerial. Press slightly before the ball reaches you to give your bat time to swing.</p></div></div><div class="help-tip">One shot per ball. Timing and direction matter. Grounded strokes cannot be caught; lofted shots carry that risk. Odd runs change the striker. Your last three deliveries shape your confidence.</div><button class="primary-button" id="help-got-it">GOT IT <span>→</span></button></dialog>
       <footer class="page-footer" id="page-footer"><span>BUILT FOR THE NEXT BALL.</span><span>NO LONG INNINGS. JUST GOOD CRICKET.</span><span>v0.1</span></footer>
       <div class="debug-panel" id="debug-panel" hidden></div>
@@ -71,7 +74,7 @@ export class GameUI {
     root.append(this.el);this.tracker=this.get<HTMLCanvasElement>('tracker-canvas');
     this.get('play').onclick=()=>{game.setup();this.update();};
     this.get('setup-back').onclick=()=>{game.menu();this.update();};
-    this.get('home').onclick=()=>{if(game.phase==='menu'||game.phase==='setup'){game.menu();this.update();}else {handlers.pause();}};
+    this.get('home').onclick=()=>{if(game.phase==='menu'||game.phase==='setup'||game.phase==='complete'){game.menu();this.update();}else {handlers.pause();}};
     this.get('start').onclick=()=>handlers.start(this.team,this.difficulty);
     this.get('play-again').onclick=()=>handlers.start(this.team,this.difficulty);
     this.get('result-menu').onclick=()=>{game.menu();this.update();};
@@ -79,10 +82,16 @@ export class GameUI {
     this.get('sound').onclick=()=>{const on=handlers.sound();this.get('sound-label').textContent=`SOUND ${on?'ON':'OFF'}`;this.get('sound').setAttribute('aria-label',`Turn sound ${on?'off':'on'}`);};
     for(const id of ['pause','resume'])this.get(id).onclick=handlers.pause;
     const help=this.get<HTMLDialogElement>('help-dialog');
-    this.get('help').onclick=()=>{this.helpWasPaused=game.paused;if(['runup','delivery','outgoing','feedback'].includes(game.phase))game.paused=true;help.showModal();};
-    const close=()=>{help.close();game.paused=this.helpWasPaused;};
+    this.get('help').onclick=()=>{this.helpWasPaused=game.paused;if(!game.paused&&['runup','delivery','outgoing','feedback'].includes(game.phase))handlers.pause();help.showModal();};
+    const close=()=>help.close();
     this.get('close-help').onclick=close;this.get('help-got-it').onclick=close;
-    help.addEventListener('cancel',()=>{game.paused=this.helpWasPaused;});
+    help.addEventListener('close',()=>{game.paused=this.helpWasPaused;this.update();});
+    this.el.addEventListener('keydown',event=>{
+      if(event.key!=='Tab'||!game.paused||help.open||this.get('pause-overlay').hidden)return;
+      const first=this.get('resume'),last=this.get('pause-menu');
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+      else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+    });
     this.el.querySelectorAll<HTMLButtonElement>('[data-team]').forEach(button=>button.onclick=()=>{
       this.team=button.dataset.team as Team;this.updateSelection();
     });
@@ -107,9 +116,20 @@ export class GameUI {
   reset(){this.trail=[];this.lastMatchBalls='';this.feedbackTimer=0;this.quality='';this.selected='straight';}
   update(){
     const game=this.game, phase=game.phase, playing=['runup','delivery','outgoing','feedback'].includes(phase);
-    this.root.dataset.screen=phase==='menu'?'menu':phase==='setup'?'setup':phase==='complete'?'result':'play';
+    const screen=phase==='menu'?'menu':phase==='setup'?'setup':phase==='complete'?'result':'play';
+    this.root.dataset.screen=screen;
     this.show('menu-panel',phase==='menu');this.show('stadium-caption',phase==='menu');this.show('page-footer',phase==='menu');
     this.show('setup-panel',phase==='setup');this.show('match-ui',playing);this.show('result-panel',phase==='complete');this.show('pause-overlay',game.paused && playing);
+    const paused=game.paused&&playing;
+    if(paused&&!this.wasPaused){
+      this.focusBeforePause=document.activeElement instanceof HTMLElement?document.activeElement:null;
+      this.get('resume').focus({preventScroll:true});
+    } else if(screen!==this.lastScreen){
+      this.get(screen==='menu'?'play':screen==='setup'?'setup-back':screen==='result'?'play-again':'match-ui').focus({preventScroll:true});
+    } else if(!paused&&this.wasPaused&&!this.get<HTMLDialogElement>('help-dialog').open){
+      (this.focusBeforePause?.getClientRects().length?this.focusBeforePause:this.get('match-ui')).focus({preventScroll:true});
+    }
+    this.wasPaused=paused;this.lastScreen=screen;
     const match=game.match;
     if(!match)return;
     const batter=match.batters[match.striker],other=match.batters[match.nonStriker];
